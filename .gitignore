@@ -1,4 +1,10 @@
 # temporaries
 *.swp
 *.swo
+.idea*
+
+# logs
 **/logs
+
+# builds
+*.pyc
