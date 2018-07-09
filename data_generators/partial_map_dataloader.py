@@ -18,11 +18,10 @@ import cv2
 import functools
 from collections import OrderedDict
 import yaml
+import json
 import glob
 import re
-
 import functools
-
 import typing
 
 class PartialMapDataset(Dataset):
@@ -61,12 +60,32 @@ class PartialMapDataset(Dataset):
             print('[LOG] {} corresponding files missing'.format(len(unfiltered_files) - len(files)))
 
         # make proper dictionary for better indexing
-        files = [{
+        self.files = [{
             'info':     files[i][0],
             'costmap':  files[i][1]
         } for i in range(len(files))]
 
-        for i in files: print(i)
+
+    def __len__(self):
+        """
+        :return: total maps in the dataset
+        """
+        return len(self.files)
+
+    def __getitem__(self, item):
+        info = None
+
+        import time
+        with open(self.files[item]['info'], 'r') as f:
+            try:
+                info = yaml.load(f, Loader=yaml.CLoader)
+            except yaml.YAMLError as e:
+                print(e)
+                return None
+
+        # print(json.dumps(info, indent=4))
+        if info is not None:
+            return cv2.imread(self.files[item]['costmap'])
 
 
 if __name__ == '__main__':
@@ -75,6 +94,22 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='partial map data generator test')
+
+    parser.add_argument(
+        '--shuffle', dest='is_shuffle', action='store_true',
+        help='shuffle the data (default true)'
+    )
+    parser.add_argument(
+        '--no-shuffle', dest='is_shuffle', action='store_false',
+        help='do not shuffle the data (default true)'
+    )
+    parser.set_defaults(is_shuffle=True)
+
+    parser.add_argument(
+        '--batch-size', type=int, default=4,
+        metavar='N', help='batch size'
+    )
+
     parser.add_argument(
         'dataset_dir', type=str, default='.',
         metavar='S', help='dataset directory'
@@ -84,3 +119,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = PartialMapDataset(args.dataset_dir)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.is_shuffle, num_workers=4)
+
+    for batch_idx, data in enumerate(dataloader):
+        print(data.size())
