@@ -1,0 +1,4 @@
+# temporaries
+*.swp
+*.swo
+**/logs
