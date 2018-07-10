@@ -1,10 +1,12 @@
-g#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 """@package docstring
 Implementation of pytorch util.data.dataset interface for partial map dataset"""
 
 #custom imports
 import utils
+from kth.FloorPlanGraph import FloorPlanGraph
+import utils.constants
 
 # pytorch imports
 import torch
@@ -24,22 +26,26 @@ import re
 import functools
 import typing
 
+
 class PartialMapDataset(Dataset):
     """Partial map dataset implementing torch.utils.data.Dataset interface
     """
 
-    def __init__(self, dataset_dir: typing.Type[str]):
+    def __init__(self, partial_dataset_dir: typing.Type[str], original_dataset_dir: typing.Type[str]):
         """
         parses the directory get group all the relevant files into a dataset
-        :param dataset_dir: dataset directory
+        :param partial_dataset_dir: partial map dataset directory
+        :param original_dataset_dir: original dataset dir with xml annotation files
         """
-        self.dataset_dir = dataset_dir
+        self.partial_dataset_dir = partial_dataset_dir
+        self.original_dataset_dir = original_dataset_dir
 
-        info_files = glob.glob(os.path.join(dataset_dir, '**', 'info*.yaml'), recursive=True)
+        info_files = glob.glob(os.path.join(partial_dataset_dir, '**', 'info*.yaml'), recursive=True)
 
         regex = re.compile(r'.*info(\d+).yaml$')
         file_indices = [re.search(regex, info_file).group(1) for info_file in info_files]
 
+        # <partial_dataset_dir>/[small,middle,large]/<floorplan_name>/<simulation_run_idx>/costmap<iter_idx>.png
         costmap_files = [
             os.path.join(
                 '/'.join(info_files[i].split('/')[0:-1]),
@@ -48,18 +54,33 @@ class PartialMapDataset(Dataset):
             for i in range(len(file_indices))
         ]
 
+        info_files_split = [i.split('/') for i in info_files]
+
+        # <partial_dataset_dir>/[small,middle,large]/<floorplan_name>/<simulation_run_idx>/boundingBox<iter_idx>.png
         bounding_box_files = [
             os.path.join(
-                '/'.join(info_files[i].split('/')[0:-1]),
+                '/'.join(info_files_split[i][0:-1]),
                 'boundingBox' + str(file_indices[i]) + '.png'
             )
             for i in range(len(file_indices))
         ]
 
+        # TODO: avoid redundant ground truth names for each simulation and iteration. Use indexing rather than filenames
+        # TODO: maybe load all the ground truth maps for efficiency
+        # <partial_dataset_dir>/[small,middle,large]/<floorplan_name>/GT.bmp
         ground_truth_files = [
             os.path.join(
-                '/'.join(info_files[i].split('/')[0:-2]),
+                '/'.join(info_files_split[i][0:-2]),
                 'GT' + '.bmp'
+            )
+            for i in range(len(file_indices))
+        ]
+
+        # <original_dataset_dir>/[small,middle,large]/<floorplan_name>.xml
+        xml_annotation_files = [
+            os.path.join(
+                original_dataset_dir,
+                '/'.join(info_files_split[i][-4:-2]) + '.xml'
             )
             for i in range(len(file_indices))
         ]
@@ -68,25 +89,34 @@ class PartialMapDataset(Dataset):
             'info_file': info_files[i],
             'costmap_file': costmap_files[i],
             'bounding_box_file': bounding_box_files[i],
-            'ground_truth_file': ground_truth_files[i]
+            'ground_truth_file': ground_truth_files[i],
+            'xml_annotation_file': xml_annotation_files[i]
         } for i in range(len(file_indices))]
 
-        self.files = list(filter(
+        self.dataset_meta_info = list(filter(
             lambda file_group: \
                 # check if each file in file group (info, costmap, bounding box, ground truth) exist
                 functools.reduce(lambda is_file, x: is_file and os.path.isfile(file_group[x]), file_group, True),
             unfiltered_files
         ))
 
-        if len(unfiltered_files) != len(self.files):
-            print('[LOG] {} corresponding files missing'.format(len(unfiltered_files) - len(self.files)))
+        if len(unfiltered_files) != len(self.dataset_meta_info):
+            print('[LOG] {} corresponding files missing'.format(len(unfiltered_files) - len(self.dataset_meta_info)))
+
+        # parse floorplan into graph for later efficiency
+        self.dataset_meta_info = [
+            dict(floorplan_graph=FloorPlanGraph(file_path=meta_info['xml_annotation_file']), #FloorPlanGraph(),
+                 **meta_info)
+            for meta_info in self.dataset_meta_info
+        ]
 
 
     def __len__(self):
         """
         :return: total maps in the dataset
         """
-        return len(self.files)
+        return len(self.dataset_meta_info)
+
 
     def __getitem__(self, item):
         """
@@ -96,7 +126,7 @@ class PartialMapDataset(Dataset):
         """
 
         info = None
-        with open(self.files[item]['info_file'], 'r') as f:
+        with open(self.dataset_meta_info[item]['info_file'], 'r') as f:
             try:
                 info = yaml.load(f, Loader=yaml.CLoader)
             except yaml.YAMLError as e:
@@ -107,26 +137,33 @@ class PartialMapDataset(Dataset):
 
         # print(json.dumps(info, indent=4))
 
-        costmap_image = cv2.imread(self.files[item]['costmap_file'], cv2.IMREAD_COLOR)
+        costmap_image = cv2.imread(self.dataset_meta_info[item]['costmap_file'], cv2.IMREAD_COLOR)
+        original_costmap_size = costmap_image.shape
+        costmap_image = cv2.resize(costmap_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
-        ground_truth_image = cv2.imread(self.files[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
+        # ground_truth_image = cv2.imread(self.dataset_meta_info[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
+        ground_truth_image = self.dataset_meta_info[item]['floorplan_graph'].to_image(
+            float(original_costmap_size[0]) / utils.constants.HEIGHT * utils.constants.RESOLUTION,
+            (utils.constants.WIDTH, utils.constants.HEIGHT)
+        )
 
-        bounding_box_image = cv2.imread(self.files[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
+        bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
+        bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
         bounding_box_image = np.expand_dims(bounding_box_image, -1)
 
         # dims W x H x C
         input_image = np.concatenate((costmap_image, bounding_box_image), axis=-1)
+        ground_truth_image = np.expand_dims(ground_truth_image, -1)
 
         # dims C x W x H
         input_image = input_image.transpose(2, 0, 1)
-        ground_truth_image = np.expand_dims(ground_truth_image, 0)
+        ground_truth_image = ground_truth_image.transpose(2, 0, 1)
 
         # normalize
         input_image = input_image.astype(dtype=np.float32)
         input_image /= 255.0
 
         ground_truth_image = ground_truth_image.astype(dtype=np.float32)
-        ground_truth_image /= 255.0
 
         return input_image, ground_truth_image
 
@@ -148,19 +185,25 @@ if __name__ == '__main__':
     parser.set_defaults(is_shuffle=True)
 
     parser.add_argument(
-        '--batch-size', type=int, default=16,
+        '--batch-size', type=int, default=4,
         metavar='N', help='batch size'
     )
 
     parser.add_argument(
-        'dataset_dir', type=str, default='.',
-        metavar='S', help='dataset directory'
+        'partial_dataset_dir', type=str, default='.',
+        metavar='S', help='partial map dataset directory'
+
+    )
+
+    parser.add_argument(
+        'original_dataset_dir', type=str, default='.',
+        metavar='S', help='original kth dataset directory'
 
     )
 
     args = parser.parse_args()
 
-    dataset = PartialMapDataset(args.dataset_dir)
+    dataset = PartialMapDataset(args.partial_dataset_dir, args.original_dataset_dir)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.is_shuffle, num_workers=4)
 
     for batch_idx, batch_data in enumerate(dataloader):
@@ -170,11 +213,27 @@ if __name__ == '__main__':
 
         import utils.vis_utils
 
-
         # shift the transparency channel to show translucent non-frontiers
         input[:, -1, :, :] += 0.1
-        grid = utils.vis_utils.make_grid(input, nrow=int(np.sqrt(args.batch_size)), padding=0)
 
+        # collated GT and input
+        mixed_data = torch.FloatTensor(2 * args.batch_size, *(input[0].size()))
+        mixed_data[0::2] = input
+        mixed_data[1::2] = torch.cat(
+            [
+                torch.zeros(target.size(0), 2, *(target.shape[2:])),
+                target,
+                torch.ones(target.size(0), 1, *(target.shape[2:]))
+            ],
+            dim=1
+        )
+        grid = utils.vis_utils.make_grid(mixed_data, nrow=int(args.batch_size / 2), padding=0)
+
+        ## overlapping GT and input
+        # grid = utils.vis_utils.make_grid(
+        #     input + torch.cat([target, torch.ones(target.size(0), 1, *(target.shape[2:]))], dim=1),
+        #     nrow=int(args.batch_size / 2), padding=0
+        # )
         ndarr = grid.mul(255).clamp(0, 255).byte().permute(1, 2, 0).numpy()
         plt.imshow(ndarr)
         cv2.imwrite('/tmp/training_input.png', ndarr)
