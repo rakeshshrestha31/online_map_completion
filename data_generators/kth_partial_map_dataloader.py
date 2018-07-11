@@ -122,18 +122,18 @@ class PartialMapDataset(Dataset):
         """
 
         :param item: item index
-        :return: input (B x C x W x H) and target (B X 1 X W X H) where B-batch size, C-channel, W-width, H-height
+        :return: input (B x C x H x W) and target (B x 1 x H x W) where B-batch size, C-channel, W-width, H-height
         """
 
-        info = None
-        with open(self.dataset_meta_info[item]['info_file'], 'r') as f:
-            try:
-                info = yaml.load(f, Loader=yaml.CLoader)
-            except yaml.YAMLError as e:
-                print(e)
-
-        if info is None:
-            raise Exception('error loading info (yaml) file ')
+        # info = None
+        # with open(self.dataset_meta_info[item]['info_file'], 'r') as f:
+        #     try:
+        #         info = yaml.load(f, Loader=yaml.CLoader)
+        #     except yaml.YAMLError as e:
+        #         print(e)
+        #
+        # if info is None:
+        #     raise Exception('error loading info (yaml) file ')
 
         # print(json.dumps(info, indent=4))
 
@@ -151,11 +151,11 @@ class PartialMapDataset(Dataset):
         bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
         bounding_box_image = np.expand_dims(bounding_box_image, -1)
 
-        # dims W x H x C
+        # dims H x W x C
         input_image = np.concatenate((costmap_image, bounding_box_image), axis=-1)
         ground_truth_image = np.expand_dims(ground_truth_image, -1)
 
-        # dims C x W x H
+        # dims C x H x W
         input_image = input_image.transpose(2, 0, 1)
         ground_truth_image = ground_truth_image.transpose(2, 0, 1)
 
