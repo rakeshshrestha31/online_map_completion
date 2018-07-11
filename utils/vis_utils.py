@@ -4,6 +4,33 @@ import torch
 import math
 irange = range
 
+def get_padded_occupancy_grid(occupancy_grid : torch.FloatTensor):
+    """
+    pads the occupancy grid to 4 channels
+    :param occupancy_grid: B x 1 x H x W
+    :return: padded occupancy grid B x 4 x H x W (occupancy grid is in channel 3)
+    """
+    return torch.cat(
+            [
+                torch.zeros(occupancy_grid.size(0), 2, *(occupancy_grid.shape[2:])),
+                occupancy_grid,
+                torch.ones(occupancy_grid.size(0), 1, *(occupancy_grid.shape[2:]))
+            ],
+            dim=1
+        )
+
+
+def get_transparancy_adjusted_input(multi_channel_input):
+    """
+    shift the transparency so that the non-frontier regions are faintly visible
+    :param multi_channel_input: B x 4 x H x W tensor. The frontier mask is channel 1
+    :return: B x 4 x H x W tensor with adjusted transparency
+    """
+    # shift the transparency channel to show translucent non-frontiers
+    multi_channel_input[:, -1, :, :] += 0.1
+    return multi_channel_input
+
+
 def make_grid(tensor, nrow=8, padding=2,
               normalize=False, range=None, scale_each=False, pad_value=0):
     """Make a grid of images.
@@ -84,3 +111,20 @@ def make_grid(tensor, nrow=8, padding=2,
                 .copy_(tensor[k])
             k = k + 1
     return grid
+
+
+def save_image(tensor, filename, nrow=8, padding=2,
+               normalize=False, range=None, scale_each=False, pad_value=0):
+    """Save a given Tensor into an image file.
+
+    Args:
+        tensor (Tensor or list): Image to be saved. If given a mini-batch tensor,
+            saves the tensor as a grid of images by calling ``make_grid``.
+        **kwargs: Other arguments are documented in ``make_grid``.
+    """
+    from PIL import Image
+    grid = make_grid(tensor, nrow=nrow, padding=padding, pad_value=pad_value,
+                     normalize=normalize, range=range, scale_each=scale_each)
+    ndarr = grid.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+    im = Image.fromarray(ndarr)
+    im.save(filename)
