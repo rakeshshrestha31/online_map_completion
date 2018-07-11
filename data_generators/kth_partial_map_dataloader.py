@@ -214,19 +214,14 @@ if __name__ == '__main__':
         import utils.vis_utils
 
         # shift the transparency channel to show translucent non-frontiers
-        input[:, -1, :, :] += 0.1
+        input = utils.vis_utils.get_transparancy_adjusted_input(input)
 
         # collated GT and input
         mixed_data = torch.FloatTensor(2 * args.batch_size, *(input[0].size()))
         mixed_data[0::2] = input
-        mixed_data[1::2] = torch.cat(
-            [
-                torch.zeros(target.size(0), 2, *(target.shape[2:])),
-                target,
-                torch.ones(target.size(0), 1, *(target.shape[2:]))
-            ],
-            dim=1
-        )
+        mixed_data[1::2] = utils.vis_utils.get_padded_occupancy_grid(target)
+        mixed_data[1::2, -1, :, :] = input[:, -1, :, :]
+
         grid = utils.vis_utils.make_grid(mixed_data, nrow=int(args.batch_size / 2), padding=0)
 
         ## overlapping GT and input

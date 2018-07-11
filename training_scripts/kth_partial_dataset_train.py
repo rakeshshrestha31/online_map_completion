@@ -12,6 +12,8 @@ import utils.constants
 # from utils.tensorboard_logger import Logger
 import utils.vis_utils
 from utils.vis_utils import save_image
+from utils.model_visualize import make_dot, make_dot_from_trace
+
 
 from utils import loss_functions as custom_loss_functions
 from data_generators.kth_partial_map_dataloader import PartialMapDataset
@@ -255,6 +257,10 @@ if __name__ == '__main__':
             test_reconstruction_loss += reconstruction_loss.item()
             test_kld_loss += kld_loss.item()
 
+            if epoch == 1:
+                dot = make_dot(recon_batch, params=dict(list(model.named_parameters())))
+                dot.render("model", '.')
+
             if i == 0:
                 n = min(input.size(0), 32)
                 # threshold the reconstructed data
@@ -277,10 +283,10 @@ if __name__ == '__main__':
                 input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
 
                 ground_truth_for_viz = utils.vis_utils.get_padded_occupancy_grid(ground_truth[:n])
-                ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+                # ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
 
                 recon_for_viz = utils.vis_utils.get_padded_occupancy_grid(recon[:n])
-                recon_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+                # recon_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
 
                 comparison = torch.cat([
                     input_for_viz, ground_truth_for_viz, recon_for_viz
