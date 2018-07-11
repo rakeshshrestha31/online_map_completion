@@ -5,6 +5,8 @@
 
 # logs
 **/logs
+**/results
+**/checkpoints
 
 # builds
 *.pyc
