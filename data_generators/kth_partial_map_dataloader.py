@@ -19,7 +19,7 @@ import numpy as np
 import cv2
 import functools
 from collections import OrderedDict
-import yaml
+# import yaml
 import json
 import glob
 import re
@@ -181,7 +181,7 @@ class PartialMapDataset(Dataset):
         # ground_truth_image = cv2.imread(self.dataset_meta_info[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
         ground_truth_image = self.dataset_meta_info[item]['floorplan_graph'].to_image(
             utils.constants.RESOLUTION,
-            original_costmap_size[:2]
+            (original_costmap_size[1], original_costmap_size[0])
         )
         ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
