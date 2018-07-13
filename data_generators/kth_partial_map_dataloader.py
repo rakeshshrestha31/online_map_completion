@@ -40,9 +40,9 @@ class PartialMapDataset(Dataset):
         self.partial_dataset_dir = partial_dataset_dir
         self.original_dataset_dir = original_dataset_dir
 
-        info_files = glob.glob(os.path.join(partial_dataset_dir, '**', 'info*.yaml'), recursive=True)
+        info_files = glob.glob(os.path.join(partial_dataset_dir, '**', 'info*.json'), recursive=True)
 
-        regex = re.compile(r'.*info(\d+).yaml$')
+        regex = re.compile(r'.*info(\d+).json')
         file_indices = [re.search(regex, info_file).group(1) for info_file in info_files]
 
         # <partial_dataset_dir>/[small,middle,large]/<floorplan_name>/<simulation_run_idx>/costmap<iter_idx>.png
@@ -125,15 +125,15 @@ class PartialMapDataset(Dataset):
         :return: input (B x C x H x W) and target (B x 1 x H x W) where B-batch size, C-channel, W-width, H-height
         """
 
-        # info = None
-        # with open(self.dataset_meta_info[item]['info_file'], 'r') as f:
-        #     try:
-        #         info = yaml.load(f, Loader=yaml.CLoader)
-        #     except yaml.YAMLError as e:
-        #         print(e)
-        #
-        # if info is None:
-        #     raise Exception('error loading info (yaml) file ')
+        info = None
+        with open(self.dataset_meta_info[item]['info_file'], 'r') as f:
+            try:
+                info = json.load(f)
+            except Exception as e:
+                print(e)
+
+        if info is None:
+            raise Exception('error loading info (yaml) file ')
 
         # print(json.dumps(info, indent=4))
 
@@ -143,9 +143,10 @@ class PartialMapDataset(Dataset):
 
         # ground_truth_image = cv2.imread(self.dataset_meta_info[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
         ground_truth_image = self.dataset_meta_info[item]['floorplan_graph'].to_image(
-            float(original_costmap_size[0]) / utils.constants.HEIGHT * utils.constants.RESOLUTION,
-            (utils.constants.WIDTH, utils.constants.HEIGHT)
+            utils.constants.RESOLUTION,
+            original_costmap_size
         )
+        ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
         bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
         bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
