@@ -43,7 +43,7 @@ class FloorPlanGraph(object):
         return a map centered at sample_centroid
         :param sample_centroid: the center (pixels coordinate) of sampled (partial) area, using original resolution
         :param target_resolution: the resolution of output image, resolution: m / pixels
-        :param image_size: height and width of the output image
+        :param image_size: width and height of the output image, (width, height)
         :return: a (partial) image to represent the map
         """
         out_image = np.zeros((image_size[1], image_size[0]), dtype=np.float32)
@@ -84,7 +84,7 @@ class FloorPlanGraph(object):
         """
         output the whole image of the map, if the resolution is too precise that cannot hold the full map
         within map_size, the map will be cropped
-        :param image_size: the height and width of the map
+        :param image_size: the width and height of the map, (width, height)
         :param target_resolution: resolution of the map
         :return: image to represent the map
         """
