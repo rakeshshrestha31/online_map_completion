@@ -46,7 +46,8 @@ def loss_function(input, reconstructed_occupancy_grid, ground_truth_occupancy_gr
     """
     OBSTACLE_WEIGHT = 130
 
-    cost_mask = input[:, 1:2, :, :].clone()
+    cost_mask = input[:, -1:, :, :]
+
 
     # TODO: different cost for obstacle and free space
     ## because the amount of free space is more, the network might be tempted to always predict free space
@@ -61,10 +62,12 @@ def loss_function(input, reconstructed_occupancy_grid, ground_truth_occupancy_gr
 
     BCE = F.binary_cross_entropy(
         reconstructed_occupancy_grid, ground_truth_occupancy_grid,
-        weight=cost_mask, size_average=False
+        weight=cost_mask,
+        size_average=False
     )
     KLD = custom_loss_functions.kl_divergence_loss(mu, logvar)
-    return BCE + KLD, BCE, KLD
+    return (1.0 - utils.constants.KLD_WEIGHT) * BCE + utils.constants.KLD_WEIGHT * KLD, \
+           BCE, KLD
 
 
 if __name__ == '__main__':
@@ -229,7 +232,6 @@ if __name__ == '__main__':
         #     'epoch_kld_loss': train_kld_loss,
         # }, epoch)
 
-
     def test(epoch):
         model.eval()
         test_loss = 0
@@ -248,8 +250,8 @@ if __name__ == '__main__':
             if args.cuda:
                 input = input.cuda()
                 ground_truth = ground_truth.cuda()
-            input = Variable(input, volatile=True)
-            ground_truth = Variable(ground_truth, volatile=True)
+            input = Variable(input)
+            ground_truth = Variable(ground_truth)
 
             recon_batch, mu, logvariance = model(input)  # ground_truth) #
             loss, reconstruction_loss, kld_loss = loss_function(input, recon_batch, ground_truth, mu, logvariance)
@@ -283,10 +285,19 @@ if __name__ == '__main__':
                 input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
 
                 ground_truth_for_viz = utils.vis_utils.get_padded_occupancy_grid(ground_truth[:n])
-                # ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+                ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+
+                ######## put all the non frontiers from input
+                frontier_mask = input[:, -1:, :, :]
+                frontier_mask.expand(*(input.size()))
+
+                non_frontier_mask = 1.0 - frontier_mask
+                non_frontier_input = input_for_viz.clone()
+                non_frontier_input = torch.mul(non_frontier_input, non_frontier_mask)
 
                 recon_for_viz = utils.vis_utils.get_padded_occupancy_grid(recon[:n])
-                # recon_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+                # recon_for_viz += non_frontier_input
+                recon_for_viz[:, -1, :, :] = 1 # input_for_viz[:, -1, :, :]
 
                 comparison = torch.cat([
                     input_for_viz, ground_truth_for_viz, recon_for_viz

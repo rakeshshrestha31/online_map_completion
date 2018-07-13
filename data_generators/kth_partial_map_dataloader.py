@@ -185,7 +185,6 @@ class PartialMapDataset(Dataset):
         )
         ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
-        print(self.dataset_meta_info[item]['bounding_box_file'])
         # bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
         bounding_box_image = self.get_bounding_box_image(info['BoundingBoxes'], original_costmap_size[:2])
         bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
