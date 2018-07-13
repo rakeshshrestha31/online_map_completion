@@ -110,6 +110,41 @@ class PartialMapDataset(Dataset):
             for meta_info in self.dataset_meta_info
         ]
 
+    def get_bounding_box_image(self, bounding_boxes, image_size):
+        """
+        get bounding box image for generating masks around frontiers
+        :param bounding_boxes: list of bounding box specs (x, y, width, height) as dict
+        :param image_size: size of the image the bounding box is part of
+        :return: numpy image of type float32 of size param image_size
+        """
+        output_image = np.zeros(image_size, dtype=np.uint8)
+        for bounding_box in bounding_boxes:
+            center = {
+                'x': bounding_box['x'] + np.round(bounding_box['width'] / 2),
+                'y': bounding_box['y'] + np.round(bounding_box['height'] / 2)
+            }
+
+            new_size = {
+                'x': int(bounding_box['width'] * utils.constants.FRONTIER_MASK_RESIZE_FACTOR),
+                'y': int(bounding_box['height'] * utils.constants.FRONTIER_MASK_RESIZE_FACTOR)
+            }
+            new_left_corner = {
+                'x': int(center['x'] - np.round(new_size['x'] / 2)),
+                'y': int(center['y'] - np.round(new_size['y'] / 2))
+            }
+
+            new_right_corner = {
+                'x':   int(new_left_corner['x'] + np.round(new_size['x'])),
+                'y':   int(new_left_corner['y'] + np.round(new_size['y']))
+            }
+
+            cv2.rectangle(
+                output_image,
+                (new_left_corner['x'], new_left_corner['y']),
+                (new_right_corner['x'], new_right_corner['y']),
+                255, -1
+            )
+        return output_image
 
     def __len__(self):
         """
@@ -141,6 +176,8 @@ class PartialMapDataset(Dataset):
         original_costmap_size = costmap_image.shape
         costmap_image = cv2.resize(costmap_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
+        # todo: instead of resizing, get the ground truth and bounding box images in the desired resolution
+
         # ground_truth_image = cv2.imread(self.dataset_meta_info[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
         ground_truth_image = self.dataset_meta_info[item]['floorplan_graph'].to_image(
             utils.constants.RESOLUTION,
@@ -148,7 +185,9 @@ class PartialMapDataset(Dataset):
         )
         ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
-        bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
+        print(self.dataset_meta_info[item]['bounding_box_file'])
+        # bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
+        bounding_box_image = self.get_bounding_box_image(info['BoundingBoxes'], original_costmap_size[:2])
         bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
         bounding_box_image = np.expand_dims(bounding_box_image, -1)
 
@@ -205,7 +244,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = PartialMapDataset(args.partial_dataset_dir, args.original_dataset_dir)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.is_shuffle, num_workers=4)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.is_shuffle, num_workers=1)
 
     for batch_idx, batch_data in enumerate(dataloader):
         input, target = batch_data
