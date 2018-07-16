@@ -66,8 +66,9 @@ class FloorPlanGraph(object):
             doors = []
             if len(space.roomLayout) == 0:
                 if os.path.exists(self.file_path):
+                    continue
                     # os.remove(self.file_path)
-                    print("Error file:" + self.file_path)
+                    # print("Error file:" + self.file_path)
             for segment in space.roomLayout:
                 if segment.type == "Portal":
                     doors.append(segment)
