@@ -76,12 +76,16 @@ class PartialMapDataset(Dataset):
             for i in range(len(file_indices))
         ]
 
-        # <original_dataset_dir>/[small,middle,large]/<floorplan_name>.xml
-        xml_annotation_files = [
-            os.path.join(
-                original_dataset_dir,
-                '/'.join(info_files_split[i][-4:-2]) + '.xml'
-            )
+        # construct a dictionary [name:floorplan] for all floorplans
+        xml_files = glob.glob(os.path.join(original_dataset_dir, '**', '*.xml'), recursive=True)
+        xml_files_split = [i.split('/') for i in xml_files]
+        xml_names = [split[-1][0:-4] for split in xml_files_split]
+        floorplans = [FloorPlanGraph(file_path=xml_file) for xml_file in xml_files]
+        self.floorplan_dict = dict(zip(xml_names, floorplans))
+
+
+        # xml file names
+        xml_names = [info_files_split[i][-3]
             for i in range(len(file_indices))
         ]
 
@@ -90,25 +94,27 @@ class PartialMapDataset(Dataset):
             'costmap_file': costmap_files[i],
             'bounding_box_file': bounding_box_files[i],
             'ground_truth_file': ground_truth_files[i],
-            'xml_annotation_file': xml_annotation_files[i]
+            'xml_name': xml_names[i]
         } for i in range(len(file_indices))]
 
-        self.dataset_meta_info = list(filter(
-            lambda file_group: \
-                # check if each file in file group (info, costmap, bounding box, ground truth) exist
-                functools.reduce(lambda is_file, x: is_file and os.path.isfile(file_group[x]), file_group, True),
-            unfiltered_files
-        ))
+        self.dataset_meta_info = unfiltered_files
+
+        # self.dataset_meta_info = list(filter(
+        #     lambda file_group: \
+        #         # check if each file in file group (info, costmap, bounding box, ground truth) exist
+        #         functools.reduce(lambda is_file, x: is_file and os.path.isfile(file_group[x]), file_group, True),
+        #     unfiltered_files
+        # ))
 
         if len(unfiltered_files) != len(self.dataset_meta_info):
             print('[LOG] {} corresponding files missing'.format(len(unfiltered_files) - len(self.dataset_meta_info)))
 
         # parse floorplan into graph for later efficiency
-        self.dataset_meta_info = [
-            dict(floorplan_graph=FloorPlanGraph(file_path=meta_info['xml_annotation_file']), #FloorPlanGraph(),
-                 **meta_info)
-            for meta_info in self.dataset_meta_info
-        ]
+        # self.dataset_meta_info = [
+        #     dict(floorplan_graph=FloorPlanGraph(file_path=meta_info['xml_annotation_file']), #FloorPlanGraph(),
+        #          **meta_info)
+        #     for meta_info in self.dataset_meta_info
+        # ]
 
     def get_bounding_box_image(self, bounding_boxes, image_size):
         """
@@ -179,7 +185,7 @@ class PartialMapDataset(Dataset):
         # todo: instead of resizing, get the ground truth and bounding box images in the desired resolution
 
         # ground_truth_image = cv2.imread(self.dataset_meta_info[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
-        ground_truth_image = self.dataset_meta_info[item]['floorplan_graph'].to_image(
+        ground_truth_image = self.floorplan_dict[self.dataset_meta_info[item]['xml_name']].to_image(
             utils.constants.RESOLUTION,
             (original_costmap_size[1], original_costmap_size[0])
         )
