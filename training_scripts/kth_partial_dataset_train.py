@@ -9,7 +9,7 @@ script for training KTH partial map dataset
 from models.residual_fully_conv_vae import ResidualFullyConvVAE
 from utils import nn_module_utils
 import utils.constants
-# from utils.tensorboard_logger import Logger
+from utils.tensorboard_logger import Logger
 import utils.vis_utils
 from utils.vis_utils import save_image
 from utils.model_visualize import make_dot, make_dot_from_trace
@@ -168,7 +168,7 @@ if __name__ == '__main__':
         'epoch_loss', 'epoch_accuracy', 'batch_loss', 'batch_accuracy', 'test_loss'
     ], checkpoint_dir)
 
-    # logger = Logger('./logs')
+    logger = Logger('./logs')
     os.system("mkdir -p ./results")
 
     def train(epoch):
@@ -209,9 +209,9 @@ if __name__ == '__main__':
 
                     'optimizer': optimizer.state_dict(),
                 }, args.temp_checkpoint)
-                # logger.scalar_dict_summary({
-                #     'batch_loss': float(loss.item())
-                # }, step)
+                logger.scalar_dict_summary({
+                    'batch_loss': float(loss.item())
+                }, step)
                 step += batch_idx
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -226,11 +226,11 @@ if __name__ == '__main__':
 
             'optimizer': optimizer.state_dict(),
         })
-        # logger.scalar_dict_summary({
-        #     'epoch_loss': train_loss,
-        #     'epoch_reconstruction_loss': train_reconstruction_loss,
-        #     'epoch_kld_loss': train_kld_loss,
-        # }, epoch)
+        logger.scalar_dict_summary({
+            'epoch_loss': train_loss,
+            'epoch_reconstruction_loss': train_reconstruction_loss,
+            'epoch_kld_loss': train_kld_loss,
+        }, epoch)
 
     def test(epoch):
         model.eval()
@@ -312,11 +312,11 @@ if __name__ == '__main__':
         test_loss /= args.batch_size
 
         print('====> Test set loss: {:.4f}'.format(test_loss))
-        # logger.scalar_dict_summary({
-        #     'test_loss': test_loss,
-        #     'test_reconstruction_loss': test_reconstruction_loss,
-        #     'test_kld_loss': test_kld_loss,
-        # }, epoch)
+        logger.scalar_dict_summary({
+            'test_loss': test_loss,
+            'test_reconstruction_loss': test_reconstruction_loss,
+            'test_kld_loss': test_kld_loss,
+        }, epoch)
         checkpoint_saver.save_checkpoint({
             'epoch': epoch,
             'state_dict': model.state_dict(),
