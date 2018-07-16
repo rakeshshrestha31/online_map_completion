@@ -139,7 +139,7 @@ if __name__ == '__main__':
         batch_size=args.batch_size, shuffle=True, **kwargs
     )
 
-    model = ResidualFullyConvVAE((utils.constants.HEIGHT, utils.constants.WIDTH), latent_encoding_channels=args.latent_size, skip_connection_type='concat') # 'add')  #
+    model = ResidualFullyConvVAE((utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH), latent_encoding_channels=args.latent_size, skip_connection_type='concat') # 'add')  #
 
     if args.cuda:
         model = model.cuda()

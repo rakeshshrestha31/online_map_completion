@@ -158,6 +158,38 @@ class PartialMapDataset(Dataset):
         """
         return len(self.dataset_meta_info)
 
+    def get_best_resolution(self, original_resolution, original_size, target_size):
+        """
+
+        :param original_resolution:
+        :param original_size: (y, x) size (matrix form)
+        :param target_size:
+        :return: coarsest resolution among the two x and y
+        """
+        resolutions = list([
+            original_resolution * original_size[i] / target_size[i] for i in range(2)
+        ])
+
+        return max(resolutions)
+
+    def pad_image(self, input_image, target_size, trucate_function):
+        """
+
+        :param input_image:
+        :param target_size: (y, x) size (matrix form)
+        :param trucate_function truncate function to use (ceil, floor, round etc)
+        :return: padded image
+        """
+        input_size = input_image.shape
+        output_image = np.zeros(
+            (target_size[0], target_size[1], input_size[2] if len(input_size) == 3 else 1),
+            dtype=input_image.dtype
+        )
+        start = [int(trucate_function((target_size[i] - input_size[i]) / 2.0)) for i in range(2)]
+
+        output_image[start[0]:(start[0] + input_size[0]), start[1]:(start[1] + input_size[1])] = input_image
+
+        return output_image
 
     def __getitem__(self, item):
         """
@@ -178,27 +210,74 @@ class PartialMapDataset(Dataset):
 
         # print(json.dumps(info, indent=4))
 
+
         costmap_image = cv2.imread(self.dataset_meta_info[item]['costmap_file'], cv2.IMREAD_COLOR)
         original_costmap_size = costmap_image.shape
-        costmap_image = cv2.resize(costmap_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
+
+        best_resolution = self.get_best_resolution(
+            utils.constants.ORIGINAL_RESOLUTION,
+            original_costmap_size,
+            (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+        )
+
+        best_size = tuple(reversed([
+            int(np.round(utils.constants.ORIGINAL_RESOLUTION / best_resolution * original_costmap_size[i]))
+            for i in range(2)
+        ]))
+
+        costmap_image = cv2.resize(
+            costmap_image,
+            # (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT)
+            best_size
+        )
+
+        costmap_image = self.pad_image(
+            costmap_image,
+            (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH),
+            np.ceil
+        )
 
         # todo: instead of resizing, get the ground truth and bounding box images in the desired resolution
 
         # ground_truth_image = cv2.imread(self.dataset_meta_info[item]['ground_truth_file'], cv2.IMREAD_GRAYSCALE)
+
         ground_truth_image = self.floorplan_dict[self.dataset_meta_info[item]['xml_name']].to_image(
-            utils.constants.RESOLUTION,
-            (original_costmap_size[1], original_costmap_size[0])
+            best_resolution, # utils.constants.ORIGINAL_RESOLUTION * original_costmap_size[1] * 1.0 / utils.constants.TARGET_WIDTH,
+            best_size
+            # (original_costmap_size[1], original_costmap_size[0])
         )
-        ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
+
+        ground_truth_image = np.expand_dims(ground_truth_image, -1)
+
+        ground_truth_image = self.pad_image(
+            ground_truth_image,
+            (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH),
+            np.ceil
+        )
+        # ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
         # bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
         bounding_box_image = self.get_bounding_box_image(info['BoundingBoxes'], original_costmap_size[:2])
-        bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
+
+        bounding_box_image = cv2.resize(
+            bounding_box_image,
+            # (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT)
+            best_size
+        )
+
         bounding_box_image = np.expand_dims(bounding_box_image, -1)
+
+        bounding_box_image = self.pad_image(
+            bounding_box_image,
+            (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH),
+            np.ceil
+        )
+        # bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT))
+
+
 
         # dims H x W x C
         input_image = np.concatenate((costmap_image, bounding_box_image), axis=-1)
-        ground_truth_image = np.expand_dims(ground_truth_image, -1)
 
         # dims C x H x W
         input_image = input_image.transpose(2, 0, 1)
@@ -266,6 +345,8 @@ if __name__ == '__main__':
         mixed_data[0::2] = input
         mixed_data[1::2] = utils.vis_utils.get_padded_occupancy_grid(target)
         mixed_data[1::2, -1, :, :] = input[:, -1, :, :]
+
+        mixed_data[1::2, 0, :, :] = mixed_data[0::2, 2, :, :]
 
         grid = utils.vis_utils.make_grid(mixed_data, nrow=int(args.batch_size / 2), padding=0)
 
