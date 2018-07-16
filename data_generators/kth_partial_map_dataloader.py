@@ -256,8 +256,13 @@ class PartialMapDataset(Dataset):
         )
         # ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
+        # gaussian blur (so that the correct prediction space is not a single pixel wide)
+        ground_truth_image = cv2.GaussianBlur(ground_truth_image, (3, 3), 0)
+
         # bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
         bounding_box_image = self.get_bounding_box_image(info['BoundingBoxes'], original_costmap_size[:2])
+
+        ground_truth_image = np.expand_dims(ground_truth_image, -1)
 
         bounding_box_image = cv2.resize(
             bounding_box_image,
