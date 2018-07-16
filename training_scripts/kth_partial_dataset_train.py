@@ -291,9 +291,9 @@ if __name__ == '__main__':
                 frontier_mask = input[:, -1:, :, :]
                 frontier_mask.expand(*(input.size()))
 
-                non_frontier_mask = 1.0 - frontier_mask
-                non_frontier_input = input_for_viz.clone()
-                non_frontier_input = torch.mul(non_frontier_input, non_frontier_mask)
+                # non_frontier_mask = 1.0 - frontier_mask
+                # non_frontier_input = input_for_viz.clone()
+                # non_frontier_input = torch.mul(non_frontier_input, non_frontier_mask)
 
                 recon_for_viz = utils.vis_utils.get_padded_occupancy_grid(recon[:n])
                 # recon_for_viz += non_frontier_input
