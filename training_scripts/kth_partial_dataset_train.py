@@ -297,7 +297,7 @@ if __name__ == '__main__':
 
                 recon_for_viz = utils.vis_utils.get_padded_occupancy_grid(recon[:n])
                 # recon_for_viz += non_frontier_input
-                recon_for_viz[:, -1, :, :] = 1 # input_for_viz[:, -1, :, :]
+                recon_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
 
                 comparison = torch.cat([
                     input_for_viz, ground_truth_for_viz, recon_for_viz
