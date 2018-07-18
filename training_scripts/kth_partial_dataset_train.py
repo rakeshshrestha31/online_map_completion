@@ -121,11 +121,14 @@ if __name__ == '__main__':
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
 
+    print('loading dataset')
     train_dataset       = PartialMapDataset(args.train_dataset, args.original_dataset)
     test_dataset        = PartialMapDataset(args.test_dataset, args.original_dataset)
-    validation_dataset  = PartialMapDataset(args.validation_dataset, args.original_dataset)
+    # validation_dataset  = PartialMapDataset(args.validation_dataset, args.original_dataset)
+    print('train set:', len(train_dataset), 'test set:', len(test_dataset))
 
     kwargs = {'num_workers': 3, 'pin_memory': True} if args.cuda else {}
+
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size, shuffle=True, **kwargs
@@ -134,10 +137,10 @@ if __name__ == '__main__':
         test_dataset,
         batch_size=args.batch_size, shuffle=True, **kwargs
     )
-    validation_loader = torch.utils.data.DataLoader(
-        validation_dataset,
-        batch_size=args.batch_size, shuffle=True, **kwargs
-    )
+    # validation_loader = torch.utils.data.DataLoader(
+    #     validation_dataset,
+    #     batch_size=args.batch_size, shuffle=True, **kwargs
+    # )
 
     model = ResidualFullyConvVAE((utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH), latent_encoding_channels=args.latent_size, skip_connection_type='concat') # 'add')  #
 
@@ -193,7 +196,7 @@ if __name__ == '__main__':
             train_reconstruction_loss += reconstruction_loss.item()
             train_kld_loss += kld_loss.item()
 
-            optimizer.step()
+            # optimizer.step()
             if batch_idx % args.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * input.size(0), len(train_loader.dataset),
@@ -261,7 +264,7 @@ if __name__ == '__main__':
 
             if epoch == 1:
                 dot = make_dot(recon_batch, params=dict(list(model.named_parameters())))
-                dot.render("model", '.')
+                dot.render("./logs/model", '.')
 
             if i == 0:
                 n = min(input.size(0), 32)

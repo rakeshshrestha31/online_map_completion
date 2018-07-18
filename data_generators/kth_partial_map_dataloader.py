@@ -158,6 +158,23 @@ class PartialMapDataset(Dataset):
         """
         return len(self.dataset_meta_info)
 
+    def get_resized_map_size(self, map):
+        """
+
+        :param map: opencv (numpy) map
+        :return: size (width, height) in target resolution
+        """
+        original_size = map.shape
+
+        best_resolution = utils.constants.TARGET_RESOLUTION
+
+        best_size = tuple(reversed([
+            int(np.round(utils.constants.ORIGINAL_RESOLUTION / best_resolution * original_size[i]))
+            for i in range(2)
+        ]))
+
+        return best_size
+
     def get_best_resolution(self, original_resolution, original_size, target_size):
         """
 
@@ -214,16 +231,20 @@ class PartialMapDataset(Dataset):
         costmap_image = cv2.imread(self.dataset_meta_info[item]['costmap_file'], cv2.IMREAD_COLOR)
         original_costmap_size = costmap_image.shape
 
-        best_resolution = self.get_best_resolution(
-            utils.constants.ORIGINAL_RESOLUTION,
-            original_costmap_size,
-            (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
-        )
+        # best_resolution = self.get_best_resolution(
+        #     utils.constants.ORIGINAL_RESOLUTION,
+        #     original_costmap_size,
+        #     (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+        # )
+        best_resolution = utils.constants.TARGET_RESOLUTION
 
         best_size = tuple(reversed([
             int(np.round(utils.constants.ORIGINAL_RESOLUTION / best_resolution * original_costmap_size[i]))
             for i in range(2)
         ]))
+
+        if best_size[0] > utils.constants.TARGET_WIDTH or best_size[1] > utils.constants.TARGET_HEIGHT:
+            print('Map exceeds target: ', best_size)
 
         costmap_image = cv2.resize(
             costmap_image,
