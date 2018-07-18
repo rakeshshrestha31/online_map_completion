@@ -16,7 +16,8 @@ from utils.model_visualize import make_dot, make_dot_from_trace
 
 
 from utils import loss_functions as custom_loss_functions
-from data_generators.kth_partial_map_dataloader import PartialMapDataset
+# from data_generators.kth_partial_map_dataloader import PartialMapDataset
+from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
 # pytorch imports
 import torch
