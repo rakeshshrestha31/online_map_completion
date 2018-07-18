@@ -79,6 +79,28 @@ class FloorPlanGraph(object):
             for segment in doors:
                 draw_segment(segment, color=0)
 
+        # boundary walls
+        boundary_walls = []
+        boundary_walls.append(LineSegment(
+            startPos=Point2D(self.graph.graph["attr"].minx, self.graph.graph["attr"].miny),
+            endPos=Point2D(self.graph.graph["attr"].maxx, self.graph.graph["attr"].miny)
+        ))
+        boundary_walls.append(LineSegment(
+            startPos=Point2D(self.graph.graph["attr"].maxx, self.graph.graph["attr"].miny),
+            endPos=Point2D(self.graph.graph["attr"].maxx, self.graph.graph["attr"].maxy)
+        ))
+        boundary_walls.append(LineSegment(
+            startPos=Point2D(self.graph.graph["attr"].maxx, self.graph.graph["attr"].maxy),
+            endPos=Point2D(self.graph.graph["attr"].minx, self.graph.graph["attr"].maxy)
+        ))
+        boundary_walls.append(LineSegment(
+            startPos=Point2D(self.graph.graph["attr"].minx, self.graph.graph["attr"].maxy),
+            endPos=Point2D(self.graph.graph["attr"].minx, self.graph.graph["attr"].miny)
+        ))
+
+        for boundary_wall in boundary_walls:
+            draw_segment(boundary_wall, color=1.0)
+
         return out_image
 
     def to_image(self, target_resolution=0.2, image_size: typing.Tuple[int, int] = (1000, 1000)):
