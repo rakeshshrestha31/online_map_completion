@@ -232,7 +232,7 @@ class ResidualFullyConvVAE(nn.Module):
 
 if __name__ == '__main__':
     batch_size = 64
-    input_size = (utils.constants.HEIGHT, utils.constants.WIDTH)
+    input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
     input = Variable(torch.FloatTensor(batch_size, 4, *input_size))
 
     for i in range(2):

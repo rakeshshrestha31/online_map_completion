@@ -59,7 +59,7 @@ class FloorPlanGraph(object):
             start_int = (round(start.x), round(start.y))
             end_int = (round(end.x), round(end.y))
 
-            cv2.line(out_image, start_int, end_int, color=color, thickness=3, lineType=cv2.LINE_AA)
+            cv2.line(out_image, start_int, end_int, color=color, thickness=1, lineType=cv2.LINE_AA)
 
         for spaceName in self.graph.nodes():
             space = self.graph.nodes[spaceName]["attr"]

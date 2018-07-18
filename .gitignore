@@ -8,5 +8,9 @@
 **/results
 **/checkpoints
 
+# model
+**/model
+**/model.pdf
+
 # builds
 *.pyc
