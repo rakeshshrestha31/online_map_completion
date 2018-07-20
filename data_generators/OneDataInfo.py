@@ -21,6 +21,7 @@ def get_mask(image_size, mask_size):
     :arg image_size the generated mask image size
     :return images
     """
+    mask_size = [mask_size[i] if mask_size[i] < image_size[i] else image_size[i] for i in range(2)]
     center = [int(image_size[i] / 2) for i in range(2)]
     mask_half_size = [int(mask_size[i] / 2) for i in range(2)]
     start = [center[i] - mask_half_size[i] for i in range(2)]
@@ -144,11 +145,15 @@ class OneDataInfo:
         rect_pad = pad_rect(rect, original_size, new_size)
 
         final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
-        mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
-        rect_final = enlarge_rect(rect_pad, final_image_size)
-
-        costmap_final = clip_image(costmap_pad, rect_final)
-        gt_final = clip_image(gt_pad, rect_final)
+        # mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
+        # get the Area to be cropped as input
+        crop_rect = enlarge_rect(rect_pad, final_image_size)
+        # crop the final map
+        costmap_final = clip_image(costmap_pad, crop_rect)
+        gt_final = clip_image(gt_pad, crop_rect)
+        # get the mask size
+        mask_size = (int(rect[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
+                     int(rect[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
         mask_final = get_mask(final_image_size, mask_size)
 
         # normalize the images
@@ -164,13 +169,19 @@ class OneDataInfo:
 
 
 if __name__ == "__main__":
-    original_dataset_dir = "/home/bird/data/floorplan_categories"
+    original_dataset_dir = "/home/bird/data/kth_floorplan_clean_categories"
     xml_files = glob.glob(os.path.join(original_dataset_dir, '**', '*.xml'), recursive=True)
     xml_files_split = [i.split('/') for i in xml_files]
     xml_names = [split[-1][0:-4] for split in xml_files_split]
     floorplans = [(FloorPlanGraph(file_path=xml_file).to_image(0.1, (1360, 1020))*255).astype(dtype=np.uint8) for xml_file in xml_files]
     floorplan_dict = dict(zip(xml_names, floorplans))
 
-    json_path = "/home/bird/data/results/middle/50056459/1/info4.json"
+    json_path = "/home/bird/data/floorplan_results_split/training/middle/50010539/1/info4.json"
     info = OneDataInfo(json_path)
-    info.__getitem__(0, floorplan_dict)
+    input, gt = info.__getitem__(0, floorplan_dict)
+    input_without_mask = input[0:3, :, :].transpose(1, 2, 0)
+    input_mask = input[3, :, :]
+    import matplotlib.pyplot as plt
+    plt.imshow(input_without_mask)
+    plt.imshow(input_mask)
+
