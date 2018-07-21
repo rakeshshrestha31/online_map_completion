@@ -228,7 +228,8 @@ class PartialMapDataset(Dataset):
         costmap_image = cv2.resize(
             costmap_image,
             # (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT)
-            best_size
+            best_size,
+            utils.constants.RESIZE_INTERPOLATION
         )
 
         costmap_image = self.pad_image(
@@ -267,7 +268,8 @@ class PartialMapDataset(Dataset):
         bounding_box_image = cv2.resize(
             bounding_box_image,
             # (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT)
-            best_size
+            best_size,
+            utils.constants.RESIZE_INTERPOLATION
         )
 
         bounding_box_image = np.expand_dims(bounding_box_image, -1)
