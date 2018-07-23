@@ -14,6 +14,24 @@ def clip_image(image, rect):
     return image[rect[0]: rect[0] + rect[2], rect[1]:rect[1] + rect[3]]
 
 
+def get_mask_image(rect, mask_size, image_size):
+    """
+    Generate mask image with size of image_size, and mask centered at rect center with size of mask_size
+    :param rect: a rectangle used to indicate mask center
+    :param mask_size: the mask area size
+    :param image_size: image size
+    :return: mask image
+    """
+    mask_image = np.zeros((image_size[0], image_size[1]), dtype=np.uint8)
+    center = [int(rect[i] + rect[i+2] / 2.0) for i in range(2)]
+    mask_half_size = [int(mask_size[i] / 2) for i in range(2)]
+    start = [center[i] - mask_half_size[i] for i in range(2)]
+    end = [start[i] + mask_size[i] for i in range(2)]
+    start = [start[i] if start[i] >= 0 else 0 for i in range(2)]
+    end = [end[i] if end[i] <= image_size[i] else image_size[i] for i in range(2)]
+    mask_image[start[0]: end[0], start[1]: end[1]].fill(255)
+    return mask_image
+
 def get_mask(image_size, mask_size):
     """generate mask in the center of the image, mask size is defined
     in constants.predicted_width and constants.predicted_height
@@ -32,7 +50,23 @@ def get_mask(image_size, mask_size):
     return mask
 
 
+def resize_rect(rect, ratio):
+    """
+    Similar to image resize, resize the rectangle
+    :param rect:
+    :param ratio:
+    :return:
+    """
+    return [int(round(rect[i] * ratio)) for i in range(4)]
+
+
 def enlarge_rect(rect, rect_new_size):
+    """
+    Change the rectangle size while keep changed center is the same with original one
+    :param rect: input rectangle
+    :param rect_new_size: new rectangle size
+    :return:
+    """
     center = get_center(rect)
     start = [center[i] - int(rect_new_size[i] / 2) for i in range(2)]
     new_rect = [start[0], start[1], rect_new_size[0], rect_new_size[1]]
@@ -45,6 +79,13 @@ def get_center(rect):
 
 
 def pad_rect(rect, original_size, new_size):
+    """
+    Similar to pad a image, pad the rectangle in a image to corresponding rectangle in new image
+    :param rect: rectangle in original image
+    :param original_size: original image size
+    :param new_size: new padded image size
+    :return: new padded rectangle
+    """
     start = [int((new_size[i] - original_size[i]) / 2.0) for i in range(2)]
     rect_new = np.copy(rect)
     rect_new[0] = rect[0] + start[0]
@@ -137,24 +178,35 @@ class OneDataInfo:
         map_name = self.get_map_name()
         gt = gt_dict[map_name]
         rect = self.frontier_bounding_boxes[item]
-        original_size = costmap.shape
-        new_size = (original_size[0] + const.TARGET_HEIGHT, original_size[1] + const.TARGET_WIDTH)
 
-        gt_pad = pad_image(gt, new_size)
-        costmap_pad = pad_costmap(costmap, new_size)
-        rect_pad = pad_rect(rect, original_size, new_size)
+        ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
+        costmap_resized = cv2.resize(costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+        gt_resized = cv2.resize(gt, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+        rect_resized = resize_rect(rect, ratio)
+        image_size = costmap_resized.shape
+
+        pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
+
+        # get the mask size
+        if const.MASK_SIZE_FROM_FRONTIER:
+            mask_size = (int(rect_resized[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
+                         int(rect_resized[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
+        else:
+            mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
+
+        gt_pad = pad_image(gt_resized, pad_image_size)
+        costmap_pad = pad_costmap(costmap_resized, pad_image_size)
+        rect_pad = pad_rect(rect_resized, image_size, pad_image_size)
+        mask_pad = get_mask_image(rect_pad, mask_size, pad_image_size)
 
         final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
-        # mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
+
         # get the Area to be cropped as input
         crop_rect = enlarge_rect(rect_pad, final_image_size)
         # crop the final map
         costmap_final = clip_image(costmap_pad, crop_rect)
         gt_final = clip_image(gt_pad, crop_rect)
-        # get the mask size
-        mask_size = (int(rect[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
-                     int(rect[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
-        mask_final = get_mask(final_image_size, mask_size)
+        mask_final = clip_image(mask_pad, crop_rect)
 
         # normalize the images
         input_image = np.dstack((costmap_final, mask_final)).astype(dtype=np.float32) / 255.0
