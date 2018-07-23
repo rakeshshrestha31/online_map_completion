@@ -295,7 +295,8 @@ if __name__ == '__main__':
                 #     recon_batches.append(recon_batch2)
                 recon, _, _ = model(input)
 
-                input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
+                # input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
+                input_for_viz = input[:n]
 
                 ground_truth_for_viz = utils.vis_utils.get_padded_occupancy_grid(ground_truth[:n])
                 ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
@@ -316,7 +317,14 @@ if __name__ == '__main__':
                     input_for_viz, ground_truth_for_viz, recon_for_viz
                 ])
 
-                save_image(comparison.data.cpu(),
+                comparison_trans = torch.tensor(comparison)
+                comparison_trans = utils.vis_utils.get_transparancy_adjusted_input(comparison_trans)
+
+                # only reserve obstacles (blue channel)
+                comparison[:, 0:2, :, :] = 0
+
+                comparison_concate = torch.cat([comparison_trans, comparison])
+                save_image(comparison_concate.data.cpu(),
                            os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                         'results/reconstruction_' + str(epoch) + '.png'),
                            nrow=n)
