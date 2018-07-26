@@ -110,6 +110,8 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
     stats['total'] = stats['total_positives'] + stats['total_negatives']
     stats['total_unknowns'] = stats['total'] - stats['total_certain_positives'] - stats['total_certain_negatives']
     stats['total_knowns'] = stats['total'] - stats['total_unknowns']
+    stats['total_unknown_positives'] = stats['total_positives'] - stats['total_certain_positives']
+    stats['total_unknown_negatives'] = stats['total_negatives'] - stats['total_certain_negatives']
 
     return stats
 
@@ -178,7 +180,7 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
+        # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},
