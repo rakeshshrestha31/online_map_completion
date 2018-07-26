@@ -191,11 +191,15 @@ class PartialMapDataset(Dataset):
 
         return output_image
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> (torch.FloatTensor, torch.FloatTensor, dict, (int, int), float):
         """
 
         :param item: item index
-        :return: input (B x C x H x W) and target (B x 1 x H x W) where B-batch size, C-channel, W-width, H-height
+        :return: input (B x C x H x W), target (B x 1 x H x W), where B-batch size, C-channel, W-width, H-height
+                info about frontiers (dict),
+                (u, v) co-ordinates of origin (translation from image frame to world co-ordinates)
+                resolution (scale factor from image to world co-ordinates)
+                (i.e. [x, y] = [(u - center_u) * resolution, (v - center_v) * resolution]
         """
 
         info = None
@@ -296,7 +300,7 @@ class PartialMapDataset(Dataset):
 
         ground_truth_image = ground_truth_image.astype(dtype=np.float32)
 
-        return input_image, ground_truth_image
+        return input_image, ground_truth_image, info, tuple([i/2 for i in best_size]), best_resolution
 
 
 if __name__ == '__main__':

@@ -4,9 +4,6 @@
 script for calculating test accuracy, precision and recall
 """
 
-OBSTACLE_THRESHOLD = 0.7
-FREE_THRESHOLD = 0.3
-
 # custom libraries
 from models.residual_fully_conv_vae import ResidualFullyConvVAE
 from utils import nn_module_utils
@@ -15,11 +12,11 @@ from utils.tensorboard_logger import Logger
 import utils.vis_utils
 from utils.vis_utils import save_image
 from utils.model_visualize import make_dot, make_dot_from_trace
-
+from utils.generator_utils import collate_without_batching_dict
 
 from utils import loss_functions as custom_loss_functions
-#from data_generators.kth_partial_map_dataloader import PartialMapDataset
-from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
+from data_generators.kth_partial_map_dataloader import PartialMapDataset
+# from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
 # pytorch imports
 import torch
@@ -54,20 +51,17 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
     :return: dict of number of true positives, false positives, true negatives, false negatives + misc secondary stats
     """
 
-    global OBSTACLE_THRESHOLD
-    global FREE_THRESHOLD
-
     frontier_mask = input[:, -1:, :, :].byte()
 
-    gt_positives = torch.mul(ground_truth_occupancy_grid.gt(OBSTACLE_THRESHOLD), frontier_mask)
-    gt_negatives = torch.mul(ground_truth_occupancy_grid.lt(FREE_THRESHOLD), frontier_mask)
+    gt_positives = torch.mul(ground_truth_occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD), frontier_mask)
+    gt_negatives = torch.mul(ground_truth_occupancy_grid.lt(utils.constants.FREE_THRESHOLD), frontier_mask)
 
     # non-positives = negatives + uncertains, non-negatives = positives + uncertains
     gt_non_positives = 1 - gt_positives
     gt_non_negatives = 1 - gt_negatives
 
-    reconstructed_positives = reconstructed_occupancy_grid.gt(OBSTACLE_THRESHOLD) * frontier_mask
-    reconstructed_negatives = reconstructed_occupancy_grid.lt(FREE_THRESHOLD) * frontier_mask
+    reconstructed_positives = reconstructed_occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD) * frontier_mask
+    reconstructed_negatives = reconstructed_occupancy_grid.lt(utils.constants.FREE_THRESHOLD) * frontier_mask
 
     true_positives = compute_positives(gt_positives, reconstructed_positives)
     true_negatives = compute_positives(gt_negatives, reconstructed_negatives)
@@ -142,7 +136,7 @@ if __name__ == '__main__':
     kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {}
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
-        batch_size=args.batch_size, shuffle=False, **kwargs
+        batch_size=args.batch_size, shuffle=True, collate_fn=collate_without_batching_dict, **kwargs
     )
 
     model = ResidualFullyConvVAE((utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH),
@@ -170,7 +164,7 @@ if __name__ == '__main__':
     model.train(False)
     batch_stats = []
     batch_kld_losses = []
-    for batch_idx, (input, ground_truth) in enumerate(test_loader):
+    for batch_idx, (input, ground_truth, info, center, resolution) in enumerate(test_loader):
         if batch_idx % 10 == 0:
             print('Batch: {} [{}/{} ({:.0f}%)]\t'.format(
                 batch_idx, batch_idx * input.size(0), len(test_loader.dataset),
@@ -187,6 +181,9 @@ if __name__ == '__main__':
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
         # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
+        print(info, center, resolution)
+        exit(0)
+
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},
