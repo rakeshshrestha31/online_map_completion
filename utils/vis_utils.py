@@ -27,7 +27,7 @@ def get_transparancy_adjusted_input(multi_channel_input):
     :return: B x 4 x H x W tensor with adjusted transparency
     """
     # shift the transparency channel to show translucent non-frontiers
-    multi_channel_input[:, -1, :, :] += 0.5
+    multi_channel_input[:, -1, :, :] += 0.7
     return multi_channel_input
 
 

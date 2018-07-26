@@ -16,7 +16,8 @@ from utils.model_visualize import make_dot, make_dot_from_trace
 
 
 from utils import loss_functions as custom_loss_functions
-from data_generators.kth_partial_map_dataloader import PartialMapDataset
+# from data_generators.kth_partial_map_dataloader import PartialMapDataset
+from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
 # pytorch imports
 import torch
@@ -33,6 +34,42 @@ import os
 import numpy as np
 
 
+def get_cost_mask(input, ground_truth):
+    """
+    :param input: input to the network B x 4 x H x W (4 channels: unknown, free, obstacle, prediction mask)
+    :param ground_truth: B x 1 x H x W (0 - free, 1 - occupied)
+    :return cost mask with weighted obstacles and free space 
+    """
+    frontier_mask = input[:, -1:, :, :]
+
+    if utils.constants.VARIABLE_COST_WEIGHT is not 0:
+        tensor_type = 'torch.cuda.FloatTensor' if args.cuda else 'torch.FloatTensor'
+        obstacle_mask = ground_truth.gt(0.5).type(tensor_type) * frontier_mask
+        free_mask = ground_truth.lt(0.5).type(tensor_type) * frontier_mask
+
+        num_obstacle_cells = torch.sum(obstacle_mask).item()
+        num_free_cells = torch.sum(free_mask).item()
+
+        if num_obstacle_cells > 0 and num_free_cells > 0:
+            if utils.constants.VARIABLE_COST_WEIGHT is -1:
+                obstacle_cost = num_obstacle_cells / (num_obstacle_cells + num_free_cells)
+            elif utils.constants.VARIABLE_COST_WEIGHT is 1:
+                obstacle_cost = num_free_cells / (num_obstacle_cells + num_free_cells)
+            else:
+                obstacle_cost = 0.5
+        else:
+            obstacle_cost = 0.5
+
+        cost_mask = obstacle_cost * obstacle_mask + (1 - obstacle_cost) * free_mask
+    else:
+        cost_mask = frontier_mask * 0.5
+
+    if utils.constants.LOSS_USE_ONLY_UNKNOWN:
+        unknown_mask = input[:, 0:1, :, :]
+        cost_mask = cost_mask * unknown_mask
+
+    return cost_mask
+
 def loss_function(input, reconstructed_occupancy_grid, ground_truth_occupancy_grid,
                   mu, logvar):
     """
@@ -44,19 +81,8 @@ def loss_function(input, reconstructed_occupancy_grid, ground_truth_occupancy_gr
     :param logvar: log variance of the latent vector
     :return: total loss, binary cross entropy loss and KL-divergence loss
     """
-    OBSTACLE_WEIGHT = 130
 
-    cost_mask = input[:, -1:, :, :]
-
-
-    # TODO: different cost for obstacle and free space
-    ## because the amount of free space is more, the network might be tempted to always predict free space
-    # # cost of the free space (0) is mapped to 1 and that of obstacle is mapped to (OBSTACLE_WEIGHT+1)
-    # cost_mask[:, :, :, :] = cost_mask[:, :, :, :] * OBSTACLE_WEIGHT + 1.0
-    #
-    # # no points for guessing what we already know
-    # cost_mask[:, :, partial_map_start[0]:partial_map_end[0], partial_map_start[1]:partial_map_end[1]] = 0
-
+    cost_mask = get_cost_mask(input, ground_truth_occupancy_grid)
     if args.cuda:
         cost_mask = cost_mask.cuda()
 
@@ -124,6 +150,10 @@ if __name__ == '__main__':
     train_dataset       = PartialMapDataset(args.train_dataset, args.original_dataset)
     test_dataset        = PartialMapDataset(args.test_dataset, args.original_dataset)
     validation_dataset  = PartialMapDataset(args.validation_dataset, args.original_dataset)
+
+    print('train set:', len(train_dataset))
+    print('test set:', len(test_dataset))
+    print('validation set:', len(validation_dataset))
 
     kwargs = {'num_workers': 3, 'pin_memory': True} if args.cuda else {}
     train_loader = torch.utils.data.DataLoader(
@@ -282,7 +312,8 @@ if __name__ == '__main__':
                 #     recon_batches.append(recon_batch2)
                 recon, _, _ = model(input)
 
-                input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
+                # input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
+                input_for_viz = input[:n]
 
                 ground_truth_for_viz = utils.vis_utils.get_padded_occupancy_grid(ground_truth[:n])
                 ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
@@ -303,7 +334,14 @@ if __name__ == '__main__':
                     input_for_viz, ground_truth_for_viz, recon_for_viz
                 ])
 
-                save_image(comparison.data.cpu(),
+                comparison_trans = torch.tensor(comparison)
+                comparison_trans = utils.vis_utils.get_transparancy_adjusted_input(comparison_trans)
+
+                # only reserve obstacles (blue channel)
+                comparison[:, 0:2, :, :] = 0
+
+                comparison_concate = torch.cat([comparison_trans, comparison])
+                save_image(comparison_concate.data.cpu(),
                            os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                         'results/reconstruction_' + str(epoch) + '.png'),
                            nrow=n)
