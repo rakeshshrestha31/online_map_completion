@@ -18,7 +18,8 @@ from utils.model_visualize import make_dot, make_dot_from_trace
 
 
 from utils import loss_functions as custom_loss_functions
-from data_generators.kth_partial_map_dataloader import PartialMapDataset
+#from data_generators.kth_partial_map_dataloader import PartialMapDataset
+from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
 # pytorch imports
 import torch
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     test_dataset = PartialMapDataset(args.test_dataset, args.original_dataset)
     print('test set:', len(test_dataset))
 
-    kwargs = {'num_workers': 3, 'pin_memory': True} if args.cuda else {}
+    kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {}
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=args.batch_size, shuffle=False, **kwargs
@@ -155,6 +156,11 @@ if __name__ == '__main__':
     batch_stats = []
     batch_kld_losses = []
     for batch_idx, (input, ground_truth) in enumerate(test_loader):
+        if batch_idx % 10 == 0:
+            print('Batch: {} [{}/{} ({:.0f}%)]\t'.format(
+                batch_idx, batch_idx * input.size(0), len(test_loader.dataset),
+                100. * batch_idx / len(test_loader)))
+
         input = Variable(input)
         ground_truth = Variable(ground_truth)
         if args.cuda:
