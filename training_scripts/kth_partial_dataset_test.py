@@ -50,7 +50,7 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
     :param input: input to the network B x 4 x H x W (4 channels: unknown, free, obstacle, prediction mask)
     :param reconstructed_occupancy_grid: B x 1 x H x W (0 - free, 1 - occupied)
     :param ground_truth_occupancy_grid: B x 1 x H x W (0 - free, 1 - occupied)
-    :return: dict of number of true positives, false positives, true negatives, false negatives
+    :return: dict of number of true positives, false positives, true negatives, false negatives + misc secondary stats
     """
 
     global OBSTACLE_THRESHOLD
@@ -58,8 +58,8 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
 
     frontier_mask = input[:, -1:, :, :].byte()
 
-    gt_positives = ground_truth_occupancy_grid.gt(OBSTACLE_THRESHOLD) * frontier_mask
-    gt_negatives = ground_truth_occupancy_grid.lt(FREE_THRESHOLD) * frontier_mask
+    gt_positives = torch.mul(ground_truth_occupancy_grid.gt(OBSTACLE_THRESHOLD), frontier_mask)
+    gt_negatives = torch.mul(ground_truth_occupancy_grid.lt(FREE_THRESHOLD), frontier_mask)
 
     # non-positives = negatives + uncertains, non-negatives = positives + uncertains
     gt_non_positives = 1 - gt_positives
@@ -93,12 +93,25 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
                os.path.join('/tmp/stat_viz.png'),
                nrow=1)
 
-    return {
+    stats = {
         'true_positives': torch.sum(true_positives).item(),
         'false_positives': torch.sum(false_positives).item(),
         'true_negatives': torch.sum(true_negatives).item(),
-        'false_negatives': torch.sum(false_negatives).item()
+        'false_negatives': torch.sum(false_negatives).item(),
+        'total_positives': torch.sum(gt_positives).item(),
+        'total_negatives': torch.sum(gt_negatives).item(),
     }
+
+    # secondary stats for easy precision-recall calculations
+    stats['total_predicted_positives'] = stats['true_positives'] + stats['false_positives']
+    stats['total_predicted_negatives'] = stats['true_negatives'] + stats['false_negatives']
+    stats['total_certain_positives'] = stats['true_positives'] + stats['false_negatives']
+    stats['total_certain_negatives'] = stats['true_negatives'] + stats['false_positives']
+    stats['total'] = stats['total_positives'] + stats['total_negatives']
+    stats['total_unknowns'] = stats['total'] - stats['total_certain_positives'] - stats['total_certain_negatives']
+    stats['total_knowns'] = stats['total'] - stats['total_unknowns']
+
+    return stats
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VAE KTH partial map training')
@@ -165,18 +178,13 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        # print('batch stat', batch_stats[-1], 'kld loss', batch_kld_losses[-1])
+        print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},
         batch_stats,
         {i: 0 for i in batch_stats[0]}
     )
-    overall_stats['total_predicted_positives'] = overall_stats['true_positives'] + overall_stats['false_positives']
-    overall_stats['total_predicted_negatives'] = overall_stats['true_negatives'] + overall_stats['false_negatives']
-    overall_stats['total_positives'] = overall_stats['true_positives'] + overall_stats['false_negatives']
-    overall_stats['total_negatives'] = overall_stats['true_negatives'] + overall_stats['false_positives']
-    overall_stats['total'] = overall_stats['total_positives'] + overall_stats['total_negatives']
 
     average_kld_loss = np.mean(batch_kld_losses)
 
@@ -188,6 +196,9 @@ if __name__ == '__main__':
             'accuracy': (overall_stats['true_positives'] + overall_stats['true_negatives']) / overall_stats['total']
                 if overall_stats['total'] else float('NaN'),
 
+            'generous_accuracy': (overall_stats['true_positives'] + overall_stats['true_negatives']) / overall_stats['total_knowns']
+            if overall_stats['total_knowns'] else float('NaN'),
+
             'obstacle_precision':
                 overall_stats['true_positives'] / overall_stats['total_predicted_positives']
                 if overall_stats['total_predicted_positives'] else float('NaN'),
@@ -196,6 +207,10 @@ if __name__ == '__main__':
                 overall_stats['true_positives'] / overall_stats['total_positives']
                 if overall_stats['true_positives'] else float('NaN'),
 
+            'obstacle_generous_recall':
+                overall_stats['true_positives'] / overall_stats['total_certain_positives']
+                if overall_stats['total_certain_positives'] else float('NaN'),
+
             'free_precision':
                 overall_stats['true_negatives'] / overall_stats['total_predicted_negatives']
                 if overall_stats['total_predicted_negatives'] else float('NaN'),
@@ -203,6 +218,10 @@ if __name__ == '__main__':
             'free_recall':
                 overall_stats['true_negatives'] / (overall_stats['total_negatives'])
                 if overall_stats['total_negatives'] else float('NaN'),
+
+            'free_generous_recall':
+                overall_stats['true_negatives'] / (overall_stats['total_certain_negatives'])
+                if overall_stats['total_certain_negatives'] else float('NaN'),
         },
         indent=4
     ))
