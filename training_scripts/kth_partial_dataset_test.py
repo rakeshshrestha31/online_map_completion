@@ -193,37 +193,36 @@ if __name__ == '__main__':
     print('average_kld_loss', average_kld_loss)
     print('overall_stats', json.dumps(overall_stats, indent=4))
 
+    def divide(x: int, y: int):
+        return x / y if y else float('NaN')
+
     print(json.dumps(
         {
-            'accuracy': (overall_stats['true_positives'] + overall_stats['true_negatives']) / overall_stats['total']
-                if overall_stats['total'] else float('NaN'),
+            'accuracy':
+                divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
+                       overall_stats['total']),
 
-            'generous_accuracy': (overall_stats['true_positives'] + overall_stats['true_negatives']) / overall_stats['total_knowns']
-            if overall_stats['total_knowns'] else float('NaN'),
+            'generous_accuracy':
+                divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
+                       overall_stats['total_knowns']),
 
             'obstacle_precision':
-                overall_stats['true_positives'] / overall_stats['total_predicted_positives']
-                if overall_stats['total_predicted_positives'] else float('NaN'),
+                divide(overall_stats['true_positives'], overall_stats['total_predicted_positives']),
 
             'obstacle_recall':
-                overall_stats['true_positives'] / overall_stats['total_positives']
-                if overall_stats['true_positives'] else float('NaN'),
+                divide(overall_stats['true_positives'], overall_stats['total_positives']),
 
             'obstacle_generous_recall':
-                overall_stats['true_positives'] / overall_stats['total_certain_positives']
-                if overall_stats['total_certain_positives'] else float('NaN'),
+                divide(overall_stats['true_positives'], overall_stats['total_certain_positives']),
 
             'free_precision':
-                overall_stats['true_negatives'] / overall_stats['total_predicted_negatives']
-                if overall_stats['total_predicted_negatives'] else float('NaN'),
+                divide(overall_stats['true_negatives'], overall_stats['total_predicted_negatives']),
 
             'free_recall':
-                overall_stats['true_negatives'] / (overall_stats['total_negatives'])
-                if overall_stats['total_negatives'] else float('NaN'),
+                divide(overall_stats['true_negatives'], (overall_stats['total_negatives'])),
 
             'free_generous_recall':
-                overall_stats['true_negatives'] / (overall_stats['total_certain_negatives'])
-                if overall_stats['total_certain_negatives'] else float('NaN'),
+                divide(overall_stats['true_negatives'], (overall_stats['total_certain_negatives'])),
         },
         indent=4
     ))
