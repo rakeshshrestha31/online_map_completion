@@ -4,9 +4,6 @@
 script for calculating test accuracy, precision and recall
 """
 
-OBSTACLE_THRESHOLD = 0.7
-FREE_THRESHOLD = 0.3
-
 # custom libraries
 from models.residual_fully_conv_vae import ResidualFullyConvVAE
 from utils import nn_module_utils
@@ -15,12 +12,13 @@ from utils.tensorboard_logger import Logger
 import utils.vis_utils
 from utils.vis_utils import save_image
 from utils.model_visualize import make_dot, make_dot_from_trace
-
+from utils.generator_utils import collate_without_batching_dict
 
 from utils import loss_functions as custom_loss_functions
-#from data_generators.kth_partial_map_dataloader import PartialMapDataset
-from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
+from data_generators.kth_partial_map_dataloader import PartialMapDataset
+# from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
+from utils.exploration_utils import compute_expected_information_gain
 # pytorch imports
 import torch
 import torch.utils.data
@@ -54,20 +52,17 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
     :return: dict of number of true positives, false positives, true negatives, false negatives + misc secondary stats
     """
 
-    global OBSTACLE_THRESHOLD
-    global FREE_THRESHOLD
-
     frontier_mask = input[:, -1:, :, :].byte()
 
-    gt_positives = torch.mul(ground_truth_occupancy_grid.gt(OBSTACLE_THRESHOLD), frontier_mask)
-    gt_negatives = torch.mul(ground_truth_occupancy_grid.lt(FREE_THRESHOLD), frontier_mask)
+    gt_positives = torch.mul(ground_truth_occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD), frontier_mask)
+    gt_negatives = torch.mul(ground_truth_occupancy_grid.lt(utils.constants.FREE_THRESHOLD), frontier_mask)
 
     # non-positives = negatives + uncertains, non-negatives = positives + uncertains
     gt_non_positives = 1 - gt_positives
     gt_non_negatives = 1 - gt_negatives
 
-    reconstructed_positives = reconstructed_occupancy_grid.gt(OBSTACLE_THRESHOLD) * frontier_mask
-    reconstructed_negatives = reconstructed_occupancy_grid.lt(FREE_THRESHOLD) * frontier_mask
+    reconstructed_positives = reconstructed_occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD) * frontier_mask
+    reconstructed_negatives = reconstructed_occupancy_grid.lt(utils.constants.FREE_THRESHOLD) * frontier_mask
 
     true_positives = compute_positives(gt_positives, reconstructed_positives)
     true_negatives = compute_positives(gt_negatives, reconstructed_negatives)
@@ -111,6 +106,8 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
     stats['total'] = stats['total_positives'] + stats['total_negatives']
     stats['total_unknowns'] = stats['total'] - stats['total_certain_positives'] - stats['total_certain_negatives']
     stats['total_knowns'] = stats['total'] - stats['total_unknowns']
+    stats['total_unknown_positives'] = stats['total_positives'] - stats['total_certain_positives']
+    stats['total_unknown_negatives'] = stats['total_negatives'] - stats['total_certain_negatives']
 
     return stats
 
@@ -140,7 +137,7 @@ if __name__ == '__main__':
     kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {}
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
-        batch_size=args.batch_size, shuffle=False, **kwargs
+        batch_size=args.batch_size, shuffle=True, collate_fn=collate_without_batching_dict, **kwargs
     )
 
     model = ResidualFullyConvVAE((utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH),
@@ -168,7 +165,7 @@ if __name__ == '__main__':
     model.train(False)
     batch_stats = []
     batch_kld_losses = []
-    for batch_idx, (input, ground_truth) in enumerate(test_loader):
+    for batch_idx, (input, ground_truth, info) in enumerate(test_loader):
         if batch_idx % 10 == 0:
             print('Batch: {} [{}/{} ({:.0f}%)]\t'.format(
                 batch_idx, batch_idx * input.size(0), len(test_loader.dataset),
@@ -184,7 +181,15 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
+        expected_info_gain = compute_expected_information_gain(input, recon_batch, info)
+        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info)
+
+        # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
+        print(json.dumps([i['Frontiers'] for i in info], indent=4))
+        print('predicted info:', [i['information_gain'] for i in expected_info_gain])
+        print('actual info:', [i['information_gain'] for i in ground_truth_info_gain])
+        exit(0)
+
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},
@@ -197,37 +202,36 @@ if __name__ == '__main__':
     print('average_kld_loss', average_kld_loss)
     print('overall_stats', json.dumps(overall_stats, indent=4))
 
+    def divide(x: int, y: int):
+        return x / y if y else float('NaN')
+
     print(json.dumps(
         {
-            'accuracy': (overall_stats['true_positives'] + overall_stats['true_negatives']) / overall_stats['total']
-                if overall_stats['total'] else float('NaN'),
+            'accuracy':
+                divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
+                       overall_stats['total']),
 
-            'generous_accuracy': (overall_stats['true_positives'] + overall_stats['true_negatives']) / overall_stats['total_knowns']
-            if overall_stats['total_knowns'] else float('NaN'),
+            'generous_accuracy':
+                divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
+                       overall_stats['total_knowns']),
 
             'obstacle_precision':
-                overall_stats['true_positives'] / overall_stats['total_predicted_positives']
-                if overall_stats['total_predicted_positives'] else float('NaN'),
+                divide(overall_stats['true_positives'], overall_stats['total_predicted_positives']),
 
             'obstacle_recall':
-                overall_stats['true_positives'] / overall_stats['total_positives']
-                if overall_stats['true_positives'] else float('NaN'),
+                divide(overall_stats['true_positives'], overall_stats['total_positives']),
 
             'obstacle_generous_recall':
-                overall_stats['true_positives'] / overall_stats['total_certain_positives']
-                if overall_stats['total_certain_positives'] else float('NaN'),
+                divide(overall_stats['true_positives'], overall_stats['total_certain_positives']),
 
             'free_precision':
-                overall_stats['true_negatives'] / overall_stats['total_predicted_negatives']
-                if overall_stats['total_predicted_negatives'] else float('NaN'),
+                divide(overall_stats['true_negatives'], overall_stats['total_predicted_negatives']),
 
             'free_recall':
-                overall_stats['true_negatives'] / (overall_stats['total_negatives'])
-                if overall_stats['total_negatives'] else float('NaN'),
+                divide(overall_stats['true_negatives'], (overall_stats['total_negatives'])),
 
             'free_generous_recall':
-                overall_stats['true_negatives'] / (overall_stats['total_certain_negatives'])
-                if overall_stats['total_certain_negatives'] else float('NaN'),
+                divide(overall_stats['true_negatives'], (overall_stats['total_certain_negatives'])),
         },
         indent=4
     ))

@@ -45,4 +45,7 @@ valid value [-1, 0, 1],
 VARIABLE_COST_WEIGHT = 1
 
 
+OBSTACLE_THRESHOLD = 0.7
+FREE_THRESHOLD = 0.3
+
 
