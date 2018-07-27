@@ -181,11 +181,13 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        # compute_expected_information_gain(input, recon_batch, info)
-        compute_expected_information_gain(input, ground_truth, info)
+        expected_info_gain = compute_expected_information_gain(input, recon_batch, info)
+        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info)
 
         # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
         print(json.dumps([i['Frontiers'] for i in info], indent=4))
+        print('predicted info:', [i['information_gain'] for i in expected_info_gain])
+        print('actual info:', [i['information_gain'] for i in ground_truth_info_gain])
         exit(0)
 
 
