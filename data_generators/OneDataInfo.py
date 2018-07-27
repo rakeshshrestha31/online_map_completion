@@ -227,7 +227,9 @@ class OneDataInfo:
     def __len__(self):
         return len(self.frontier_bounding_boxes)
 
-    def __getitem__(self, item, gt_dict):
+    def __getitem__(self, args):
+        item, gt_dict = args
+
         costmap_path = self.get_costmap_path()
         costmap = cv2.imread(costmap_path)
         map_name = self.get_map_name()

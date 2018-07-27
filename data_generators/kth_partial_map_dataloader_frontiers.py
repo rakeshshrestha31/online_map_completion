@@ -106,7 +106,7 @@ class PartialMapDataset(Dataset):
         """
         data_index, sample_index = self._index_of_sample(item)
         input_image, ground_truth_image, frontiers = \
-            self.all_data_info[data_index].__getitem__(sample_index, self.ground_truth_dict)
+            self.all_data_info[data_index][sample_index, self.ground_truth_dict]
 
         return input_image, ground_truth_image, frontiers
 
