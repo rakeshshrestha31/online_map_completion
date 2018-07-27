@@ -22,13 +22,13 @@ import cv2
 
 def compute_expected_information_gain(input: Variable, prediction: Variable,
                                       info: typing.List[dict]) \
-    -> None: # typing.Tuple[typing.List[int], np.array]:
+    -> typing.List[dict]:
     """
     Computing information gain for each frontier group
     :param input: input to the network B x 4 x H x W (4 channels: unknown, free, obstacle, prediction mask)
     :param prediction: predicted occupancy map B x 1 x H x W (0 - free, 1 - occupied)
     :param info: list of dictionary containing groups of frontier points in "Frontiers" key
-    :return: (information gain, image with expected information gain pixel set high
+    :return: list of dict containing information gain and other stuffs for each frontier cluster
     """
     frontier_bb_mask = input[:, -1:, :, :].byte()
     unknown_mask = input[:, 0:1, :, :].byte()
@@ -77,11 +77,11 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                os.path.join('/tmp/exploration_viz.png'),
                nrow=viz_data.size(0), padding=2)
 
-    flood_fill_frontiers(flood_fillable_tensor, info)
+    return flood_fill_frontiers(flood_fillable_tensor, info)
 
 
 def flood_fill_frontiers(flood_fillable_tensor,
-                         info: typing.List[dict]):
+                         info: typing.List[dict]) -> typing.List[dict]:
 
     """
     :param flood_fillable_tensor: tensor with image that's directly flood fillable
@@ -89,11 +89,12 @@ def flood_fill_frontiers(flood_fillable_tensor,
     :param info: list of dictionary containing groups of frontier points in "Frontiers" key
     :return:
     """
-
+    output = []
     for batch_idx in range(flood_fillable_tensor.size(0)):
         np_array = flood_fillable_tensor[batch_idx, 0, :, :].numpy()
 
         for frontier_group in info[batch_idx]['Frontiers']:
+            # the borders should be padded for flood fill
             flood_filled_mask = np.zeros((np_array.shape[0] + 2, np_array.shape[1] + 2), dtype=np.uint8)
 
             # flood-filled pixels are cleared for each frontier point in order to avoid repeated flood filling
@@ -117,7 +118,12 @@ def flood_fill_frontiers(flood_fillable_tensor,
                 # flood-filled pixels are cleared for each frontier point in order to avoid repeated flood filling
                 tmp_np_array = np.multiply(tmp_np_array, 1 - flood_filled_mask[1:-1, 1:-1])
 
-                cv2.imwrite('/tmp/floodfilled.png', flood_filled_mask * 255)
-                cv2.imwrite('/tmp/tmp_flood_filled_mask.png', tmp_flood_filled_mask * 255)
-                cv2.imwrite('/tmp/tmp_np_array.png', tmp_np_array * 255)
-                print('hello')
+            # the borders are padded for flood fill, remove them
+            flood_filled_mask = flood_filled_mask[1:-1, 1:-1]
+
+            flood_filled_mask = flood_filled_mask.clip(0, 1)
+            output.append({
+                'flood_filled_mask': torch.from_numpy(flood_filled_mask),
+                'information_gain': np.sum(flood_filled_mask)
+            })
+    return output
