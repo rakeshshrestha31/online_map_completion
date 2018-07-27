@@ -102,13 +102,13 @@ class PartialMapDataset(Dataset):
         """
 
         :param item: item index
-        :return: input_data (C x H x W) and ground_truth (H x W) where C-channel, W-width, H-height
+        :return: input_data (C x H x W) and ground_truth (H x W) where C-channel, W-width, H-height and frontiers
         """
         data_index, sample_index = self._index_of_sample(item)
-        input_image, ground_truth_image = \
+        input_image, ground_truth_image, frontiers = \
             self.all_data_info[data_index].__getitem__(sample_index, self.ground_truth_dict)
 
-        return input_image, ground_truth_image
+        return input_image, ground_truth_image, frontiers
 
 
 if __name__ == '__main__':
