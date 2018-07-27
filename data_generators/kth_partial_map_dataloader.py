@@ -202,8 +202,9 @@ class PartialMapDataset(Dataset):
         """
 
         :param grouped_frontiers:
-        :param image_size:
+        :param image_size: (width, height)
         :param image_resolution:
+        :param costmap_size: (width, height)
         :return:
         """
         image_half_size = tuple([i / 2 for i in image_size])
@@ -236,7 +237,7 @@ class PartialMapDataset(Dataset):
 
             return image_coords
 
-        return [
+        new_frontiers = [
             [
                 convert_to_image_coords((i['x'], i['y'])) + (i['yaw'],)
                 for i in group
@@ -244,6 +245,8 @@ class PartialMapDataset(Dataset):
             ]
             for group in grouped_frontiers
         ]
+
+        return new_frontiers
 
 
     def __getitem__(self, item) -> (torch.FloatTensor, torch.FloatTensor, dict):
@@ -340,8 +343,6 @@ class PartialMapDataset(Dataset):
         )
         # bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT))
 
-
-
         # dims H x W x C
         input_image = np.concatenate((costmap_image, bounding_box_image), axis=-1)
 
@@ -357,7 +358,7 @@ class PartialMapDataset(Dataset):
 
         info['Frontiers'] = self.convert_frontiers_to_image_coords(
             info['Frontiers'],
-            best_size, best_resolution,
+            (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT), best_resolution,
             (original_costmap_size[1], original_costmap_size[0]), utils.constants.ORIGINAL_RESOLUTION
         )
         # todo convert to image coords for bounding boxes (if needed)

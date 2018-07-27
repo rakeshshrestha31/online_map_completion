@@ -18,6 +18,7 @@ from utils import loss_functions as custom_loss_functions
 from data_generators.kth_partial_map_dataloader import PartialMapDataset
 # from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
+from utils.exploration_utils import compute_expected_information_gain
 # pytorch imports
 import torch
 import torch.utils.data
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     model.train(False)
     batch_stats = []
     batch_kld_losses = []
-    for batch_idx, (input, ground_truth, info, center, resolution) in enumerate(test_loader):
+    for batch_idx, (input, ground_truth, info) in enumerate(test_loader):
         if batch_idx % 10 == 0:
             print('Batch: {} [{}/{} ({:.0f}%)]\t'.format(
                 batch_idx, batch_idx * input.size(0), len(test_loader.dataset),
@@ -180,8 +181,11 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
+        # compute_expected_information_gain(input, recon_batch, info)
+        compute_expected_information_gain(input, ground_truth, info)
+
         # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
-        print(info, center, resolution)
+        print(json.dumps([i['Frontiers'] for i in info], indent=4))
         exit(0)
 
 
