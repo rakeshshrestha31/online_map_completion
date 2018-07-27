@@ -21,7 +21,7 @@ import cv2
 
 
 def compute_expected_information_gain(input: Variable, prediction: Variable,
-                                      info: typing.List[dict]) \
+                                      info: typing.List[dict], filename: str) \
     -> typing.List[dict]:
     """
     Computing information gain for each frontier group (uncertain predictions are considered to be free)
@@ -50,7 +50,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                 flood_fillable_tensor[batch_idx, 0, frontier_point[1], frontier_point[0]] = 1
                 annotated_input[batch_idx, :, frontier_point[1], frontier_point[0]] = 0.0
 
-    annotated_input[:, 0, :, :] = torch.mul(annotated_input[:, 0, :, :], (1  - cells_to_predict_mask).float())
+    annotated_input[:, 0:1, :, :] = torch.mul(annotated_input[:, 0:1, :, :], (1 - cells_to_predict_mask).float())
     annotated_input[:, 2:3, :, :] += predicted_obstacles.float()
 
     multi_channel_prediction = utils.vis_utils.get_padded_occupancy_grid(prediction)
@@ -58,7 +58,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
 
     viz_data = [
         utils.vis_utils.get_transparancy_adjusted_input(
-            multi_channel_prediction
+            multi_channel_prediction,
         ),
         utils.vis_utils.get_transparancy_adjusted_input(input),
         utils.vis_utils.get_transparancy_adjusted_input(annotated_input),
@@ -75,7 +75,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
 
     viz_data = torch.cat(viz_data, 0)
     save_image(viz_data.data.cpu(),
-               os.path.join('/tmp/exploration_viz.png'),
+               os.path.join('/tmp/' + filename + '.png'),
                nrow=viz_data.size(0), padding=2)
 
     return flood_fill_frontiers(flood_fillable_tensor, info)
@@ -92,7 +92,7 @@ def flood_fill_frontiers(flood_fillable_tensor,
     """
     output = []
     for batch_idx in range(flood_fillable_tensor.size(0)):
-        np_array = flood_fillable_tensor[batch_idx, 0, :, :].numpy()
+        np_array = flood_fillable_tensor[batch_idx, 0, :, :].cpu().numpy()
 
         for frontier_group in info[batch_idx]['Frontiers']:
             # the borders should be padded for flood fill

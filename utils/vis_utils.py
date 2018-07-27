@@ -22,14 +22,14 @@ def get_padded_occupancy_grid(occupancy_grid : torch.FloatTensor):
     )
 
     # unknown
-    multi_channel_occupancy_grid[:, 0, :, :] = torch.mul(
+    multi_channel_occupancy_grid[:, 0:1, :, :] = torch.mul(
         occupancy_grid.gt(utils.constants.FREE_THRESHOLD),
         occupancy_grid.lt(utils.constants.OBSTACLE_THRESHOLD)
     )
     # free
-    multi_channel_occupancy_grid[:, 1, :, :] = occupancy_grid.lt(utils.constants.FREE_THRESHOLD).float()
+    multi_channel_occupancy_grid[:, 1:2, :, :] = occupancy_grid.lt(utils.constants.FREE_THRESHOLD).float()
     # obstacles
-    multi_channel_occupancy_grid[:, 2, :, :] = occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD).float()
+    multi_channel_occupancy_grid[:, 2:3, :, :] = occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD).float()
 
     return multi_channel_occupancy_grid
 
