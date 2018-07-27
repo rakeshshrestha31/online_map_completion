@@ -15,8 +15,8 @@ from utils.model_visualize import make_dot, make_dot_from_trace
 from utils.generator_utils import collate_without_batching_dict
 
 from utils import loss_functions as custom_loss_functions
-from data_generators.kth_partial_map_dataloader import PartialMapDataset
-# from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
+# from data_generators.kth_partial_map_dataloader import PartialMapDataset
+from data_generators.kth_partial_map_dataloader_frontiers import PartialMapDataset
 
 from utils.exploration_utils import compute_expected_information_gain
 # pytorch imports
@@ -185,11 +185,8 @@ if __name__ == '__main__':
         ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info)
 
         # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
-        print(json.dumps([i['Frontiers'] for i in info], indent=4))
-        print('predicted info:', [i['information_gain'] for i in expected_info_gain])
-        print('actual info:', [i['information_gain'] for i in ground_truth_info_gain])
-        exit(0)
-
+        print('predicted info gain:', [i['information_gain'] for i in expected_info_gain])
+        print('actual info gain:', [i['information_gain'] for i in ground_truth_info_gain])
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},
