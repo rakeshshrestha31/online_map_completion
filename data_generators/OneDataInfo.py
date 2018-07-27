@@ -14,6 +14,17 @@ def clip_image(image, rect):
     return image[rect[0]: rect[0] + rect[2], rect[1]:rect[1] + rect[3]]
 
 
+def clip_frontiers(frontiers, rect):
+    frontiers_clipped = []
+    for i in range(len(frontiers)):
+        frontier_new = [frontiers[i][0] - rect[0],
+                        frontiers[i][1] - rect[1],
+                        frontiers[i][2]]
+        if 0 <= frontier_new[0] < rect[2] and 0 <= frontier_new[1] < rect[3]:
+            frontiers_clipped.append(frontier_new)
+    return frontiers_clipped
+
+
 def get_mask_image(rect, mask_size, image_size):
     """
     Generate mask image with size of image_size, and mask centered at rect center with size of mask_size
@@ -32,6 +43,7 @@ def get_mask_image(rect, mask_size, image_size):
     mask_image[start[0]: end[0], start[1]: end[1]].fill(255)
     return mask_image
 
+
 def get_mask(image_size, mask_size):
     """generate mask in the center of the image, mask size is defined
     in constants.predicted_width and constants.predicted_height
@@ -48,6 +60,22 @@ def get_mask(image_size, mask_size):
     mask[start[0]:start[0]+mask_size[0], start[1]:start[1]+mask_size[1]].fill(255)
 
     return mask
+
+
+def resize_frontiers(frontiers, ratio):
+    """
+    Similar to image resize, resize the frontier points
+    :param frontiers:
+    :param ratio:
+    :return:
+    """
+    frontiers_resized = []
+    for i in range(len(frontiers)):
+        frontier_new = [int(round(frontiers[i][0] * ratio)),
+                        int(round(frontiers[i][1] * ratio)),
+                        frontiers[i][2]]
+        frontiers_resized.append(frontier_new)
+    return frontiers_resized
 
 
 def resize_rect(rect, ratio):
@@ -76,6 +104,17 @@ def enlarge_rect(rect, rect_new_size):
 def get_center(rect):
     center = (rect[0] + int(np.round(rect[2] / 2.0)), rect[1] + int(np.round(rect[3] / 2.0)))
     return center
+
+
+def pad_frontiers(frontiers, original_size, new_size):
+    pad_offset = [int((new_size[i] - original_size[i]) / 2.0) for i in range(2)]
+    frontiers_pad = []
+    for i in range(len(frontiers)):
+        frontier_new = [frontiers[i][0] + pad_offset[0],
+                        frontiers[i][1] + pad_offset[1],
+                        frontiers[i][2]]
+        frontiers_pad.append(frontier_new)
+    return frontiers_pad
 
 
 def pad_rect(rect, original_size, new_size):
@@ -112,9 +151,13 @@ def pad_costmap(original_costmap, new_size):
     return output_image
 
 
-def parse_bounding_boxes(bounding_boxes_list):
+def parse_bounding_boxes_and_frontiers(bounding_boxes_list, frontier_cluster_list):
     bounding_boxes = []
-    for bounding_box in bounding_boxes_list:
+    frontier_clusters = []
+    assert len(bounding_boxes_list) == len(frontier_cluster_list)
+
+    for i in range(len(bounding_boxes_list)):
+        bounding_box = bounding_boxes_list[i]
         if bounding_box['height'] > const.FRONTIER_BOUNDING_BOX_MIN and \
                 bounding_box['width'] > const.FRONTIER_BOUNDING_BOX_MIN:
 
@@ -122,14 +165,25 @@ def parse_bounding_boxes(bounding_boxes_list):
                     bounding_box['x'],
                     bounding_box['height'],
                     bounding_box['width']]
+
+            cluster = []
+            for j in range(len(frontier_cluster_list[i])):
+                frontier_dict = frontier_cluster_list[i][j]
+                frontier = [frontier_dict['y'],
+                            frontier_dict['x'],
+                            frontier_dict['yaw']]
+                cluster.append(frontier)
+
+            frontier_clusters.append(cluster)
             bounding_boxes.append(rect)
 
-    return bounding_boxes
+    return bounding_boxes, frontier_clusters
 
 
 class OneDataInfo:
     def __init__(self, json_path):
         self.frontier_bounding_boxes = []
+        self.frontier_cluster_points = []
         self.json_path = ""
         self.load(json_path)
 
@@ -137,7 +191,8 @@ class OneDataInfo:
         self.json_path = json_path
         with open(self.json_path, 'r') as f:
             info = json.load(f)
-            self.frontier_bounding_boxes = parse_bounding_boxes(info["BoundingBoxes"])
+            self.frontier_bounding_boxes, self.frontier_cluster_points = \
+                parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
 
     def get_map_name(self):
         json_files_split = self.json_path.split('/')
@@ -178,13 +233,15 @@ class OneDataInfo:
         map_name = self.get_map_name()
         gt = gt_dict[map_name]
         rect = self.frontier_bounding_boxes[item]
+        frontiers = self.frontier_cluster_points[item]
 
         ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
         costmap_resized = cv2.resize(costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
         gt_resized = cv2.resize(gt, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
         rect_resized = resize_rect(rect, ratio)
-        image_size = costmap_resized.shape
+        frontiers_resized = resize_frontiers(frontiers, ratio)
 
+        image_size = costmap_resized.shape
         pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
 
         # get the mask size
@@ -197,8 +254,8 @@ class OneDataInfo:
         gt_pad = pad_image(gt_resized, pad_image_size)
         costmap_pad = pad_costmap(costmap_resized, pad_image_size)
         rect_pad = pad_rect(rect_resized, image_size, pad_image_size)
+        frontiers_pad = pad_frontiers(frontiers_resized, image_size, pad_image_size)
         mask_pad = get_mask_image(rect_pad, mask_size, pad_image_size)
-
         final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
 
         # get the Area to be cropped as input
@@ -207,6 +264,7 @@ class OneDataInfo:
         costmap_final = clip_image(costmap_pad, crop_rect)
         gt_final = clip_image(gt_pad, crop_rect)
         mask_final = clip_image(mask_pad, crop_rect)
+        frontiers_final = clip_frontiers(frontiers_pad, crop_rect)
 
         # normalize the images
         input_image = np.dstack((costmap_final, mask_final)).astype(dtype=np.float32) / 255.0
@@ -217,7 +275,7 @@ class OneDataInfo:
         input_image = input_image.transpose(2, 0, 1)
         input_gt = input_gt.transpose(2, 0, 1)
 
-        return input_image, input_gt
+        return input_image, input_gt, frontiers_final
 
 
 if __name__ == "__main__":
@@ -230,7 +288,18 @@ if __name__ == "__main__":
 
     json_path = "/home/bird/data/floorplan_results_split/training/middle/50010539/1/info4.json"
     info = OneDataInfo(json_path)
-    input, gt = info.__getitem__(0, floorplan_dict)
+    input, gt, frontiers = info.__getitem__(0, floorplan_dict)
+    input_image = input.transpose(1, 2, 0)
+    input_image[:, :, 3] = input_image[:, :, 3] * 0.5 + 0.5
+    input_image[:, :, 2].fill(0)
+    for frontier in frontiers:
+        input_image[frontier[0], frontier[1], 2] = 1.0
+
+    img_255 = (input_image * 255).astype(np.uint8)
+    cv2.imwrite("/tmp/test.png", img_255)
+    import matplotlib.pyplot as plt
+    ff = plt.imshow(input_image)
+
     input_without_mask = input[0:3, :, :].transpose(1, 2, 0)
     input_mask = input[3, :, :]
     import matplotlib.pyplot as plt
