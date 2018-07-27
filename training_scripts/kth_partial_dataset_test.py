@@ -181,12 +181,13 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        expected_info_gain = compute_expected_information_gain(input, recon_batch, info)
-        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info)
+        expected_info_gain = compute_expected_information_gain(input, recon_batch, info, 'expected')
+        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info, 'ground_truth')
 
         # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
         print('predicted info gain:', [i['information_gain'] for i in expected_info_gain])
         print('actual info gain:', [i['information_gain'] for i in ground_truth_info_gain])
+        exit(0)
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},
