@@ -191,7 +191,62 @@ class PartialMapDataset(Dataset):
 
         return output_image
 
-    def __getitem__(self, item) -> (torch.FloatTensor, torch.FloatTensor, dict, (int, int), float):
+
+    @staticmethod
+    def convert_frontiers_to_image_coords(grouped_frontiers: typing.List[typing.List[dict]],
+                                          image_size: (int, int),
+                                          image_resolution: float,
+                                          costmap_size: (int, int),
+                                          costmap_resolution: float) \
+            -> typing.List[typing.List[typing.Tuple[int, int, float]]]:
+        """
+
+        :param grouped_frontiers:
+        :param image_size:
+        :param image_resolution:
+        :return:
+        """
+        image_half_size = tuple([i / 2 for i in image_size])
+        costmap_half_size = tuple([i / 2 for i in costmap_size])
+
+        def convert_to_image_coords(costmap_coords):
+            nonlocal image_resolution
+            nonlocal image_half_size
+            nonlocal costmap_resolution
+            nonlocal costmap_half_size
+
+            world_coords = tuple(
+                (costmap_coords[i] - costmap_half_size[i]) * costmap_resolution
+                for i in range(2)
+            )
+
+            image_coords = tuple(
+                int(world_coords[i] / image_resolution + image_half_size[i])
+                for i in range(2)
+            )
+
+            if image_coords[0] < 0 or image_coords[0] >= image_size[0] \
+                or image_coords[1] < 0 or image_coords[1] >= image_size[1]:
+                print('[ERROR] frontier coordinates out of bound',
+                      'costmap coords', costmap_coords,
+                      'costmap size', costmap_size,
+                      'world coords', world_coords,
+                      'image coords', image_coords,
+                      'image size', image_size)
+
+            return image_coords
+
+        return [
+            [
+                convert_to_image_coords((i['x'], i['y'])) + (i['yaw'],)
+                for i in group
+                # if i['x'] < costmap_size[0] and i['y'] < costmap_size[1]
+            ]
+            for group in grouped_frontiers
+        ]
+
+
+    def __getitem__(self, item) -> (torch.FloatTensor, torch.FloatTensor, dict):
         """
 
         :param item: item index
@@ -300,7 +355,13 @@ class PartialMapDataset(Dataset):
 
         ground_truth_image = ground_truth_image.astype(dtype=np.float32)
 
-        return input_image, ground_truth_image, info, tuple([i/2 for i in best_size]), best_resolution
+        info['Frontiers'] = self.convert_frontiers_to_image_coords(
+            info['Frontiers'],
+            best_size, best_resolution,
+            (original_costmap_size[1], original_costmap_size[0]), utils.constants.ORIGINAL_RESOLUTION
+        )
+        # todo convert to image coords for bounding boxes (if needed)
+        return input_image, ground_truth_image, info
 
 
 if __name__ == '__main__':

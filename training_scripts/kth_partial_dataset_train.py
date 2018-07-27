@@ -207,7 +207,7 @@ if __name__ == '__main__':
         train_reconstruction_loss = 0
         train_kld_loss = 0
         step = (epoch - 1) * len(train_loader.dataset) + 1
-        for batch_idx, (input, ground_truth, _, _, _) in enumerate(train_loader):
+        for batch_idx, (input, ground_truth, _) in enumerate(train_loader):
             input = Variable(input)
             ground_truth = Variable(ground_truth)
             if args.cuda:
@@ -275,7 +275,7 @@ if __name__ == '__main__':
         if True:
             i = 0
             data_iter = iter(test_loader)
-            input, ground_truth, _, _, _ = next(data_iter)
+            input, ground_truth, _ = next(data_iter)
 
             if args.cuda:
                 input = input.cuda()
