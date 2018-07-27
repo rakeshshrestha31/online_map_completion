@@ -24,7 +24,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                                       info: typing.List[dict]) \
     -> typing.List[dict]:
     """
-    Computing information gain for each frontier group
+    Computing information gain for each frontier group (uncertain predictions are considered to be free)
     :param input: input to the network B x 4 x H x W (4 channels: unknown, free, obstacle, prediction mask)
     :param prediction: predicted occupancy map B x 1 x H x W (0 - free, 1 - occupied)
     :param info: list of dictionary containing groups of frontier points in "Frontiers" key
@@ -38,6 +38,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
     predicted_obstacles = prediction.gt(utils.constants.OBSTACLE_THRESHOLD)
     predicted_obstacles = torch.mul(predicted_obstacles, cells_to_predict_mask)
 
+    # uncertain predictions are considered to be free
     flood_fillable_tensor = cells_to_predict_mask.clone()
     flood_fillable_tensor = torch.mul(flood_fillable_tensor, (1-predicted_obstacles))
 
