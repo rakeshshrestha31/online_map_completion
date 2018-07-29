@@ -56,6 +56,13 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
     multi_channel_prediction = utils.vis_utils.get_padded_occupancy_grid(prediction)
     multi_channel_prediction[:, 3, :, :] = input[:, 3, :, :]
 
+    info = flood_fill_frontiers(flood_fillable_tensor, info)
+
+    flood_filled = flood_fillable_tensor.clone()
+
+    for batch_idx in range(input.size(0)):
+        flood_filled[batch_idx, :, :, :] = info[batch_idx]['flood_filled_mask']
+
     viz_data = [
         utils.vis_utils.get_transparancy_adjusted_input(
             multi_channel_prediction,
@@ -70,6 +77,15 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                 input[:, 3:, :, :]
             ],
             dim=1
+        )),
+
+        utils.vis_utils.get_transparancy_adjusted_input(torch.cat(
+            [
+                torch.zeros(flood_filled.size(0), 2, *(flood_filled.shape[2:])),
+                flood_filled.float(),
+                input[:, 3:, :, :]
+            ],
+            dim=1
         ))
     ]
 
@@ -78,7 +94,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                os.path.join('/tmp/' + filename + '.png'),
                nrow=viz_data.size(0), padding=2)
 
-    return flood_fill_frontiers(flood_fillable_tensor, info)
+    return info
 
 
 def flood_fill_frontiers(flood_fillable_tensor,
