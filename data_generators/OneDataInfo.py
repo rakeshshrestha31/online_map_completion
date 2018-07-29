@@ -227,7 +227,9 @@ class OneDataInfo:
     def __len__(self):
         return len(self.frontier_bounding_boxes)
 
-    def __getitem__(self, item, gt_dict):
+    def __getitem__(self, args):
+        item, gt_dict = args
+
         costmap_path = self.get_costmap_path()
         costmap = cv2.imread(costmap_path)
         map_name = self.get_map_name()
@@ -275,7 +277,13 @@ class OneDataInfo:
         input_image = input_image.transpose(2, 0, 1)
         input_gt = input_gt.transpose(2, 0, 1)
 
-        return input_image, input_gt, frontiers_final
+        # return extra information as a dict of list of frontiers with only one element + order is (x, y, ...)
+        #  to be consistent with dataset with multiple frontiers in a single image
+        return input_image, input_gt, \
+               {
+                   'Frontiers': [[(i[1], i[0], i[2]) for i in frontiers_final]],
+                   'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]]
+               }
 
 
 if __name__ == "__main__":

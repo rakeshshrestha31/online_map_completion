@@ -21,10 +21,10 @@ import cv2
 
 
 def compute_expected_information_gain(input: Variable, prediction: Variable,
-                                      info: typing.List[dict]) \
+                                      info: typing.List[dict], filename: str) \
     -> typing.List[dict]:
     """
-    Computing information gain for each frontier group
+    Computing information gain for each frontier group (uncertain predictions are considered to be free)
     :param input: input to the network B x 4 x H x W (4 channels: unknown, free, obstacle, prediction mask)
     :param prediction: predicted occupancy map B x 1 x H x W (0 - free, 1 - occupied)
     :param info: list of dictionary containing groups of frontier points in "Frontiers" key
@@ -38,6 +38,7 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
     predicted_obstacles = prediction.gt(utils.constants.OBSTACLE_THRESHOLD)
     predicted_obstacles = torch.mul(predicted_obstacles, cells_to_predict_mask)
 
+    # uncertain predictions are considered to be free
     flood_fillable_tensor = cells_to_predict_mask.clone()
     flood_fillable_tensor = torch.mul(flood_fillable_tensor, (1-predicted_obstacles))
 
@@ -49,15 +50,22 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                 flood_fillable_tensor[batch_idx, 0, frontier_point[1], frontier_point[0]] = 1
                 annotated_input[batch_idx, :, frontier_point[1], frontier_point[0]] = 0.0
 
-    annotated_input[:, 0, :, :] = torch.mul(annotated_input[:, 0, :, :], (1  - cells_to_predict_mask).float())
+    annotated_input[:, 0:1, :, :] = torch.mul(annotated_input[:, 0:1, :, :], (1 - cells_to_predict_mask).float())
     annotated_input[:, 2:3, :, :] += predicted_obstacles.float()
 
     multi_channel_prediction = utils.vis_utils.get_padded_occupancy_grid(prediction)
     multi_channel_prediction[:, 3, :, :] = input[:, 3, :, :]
 
+    info = flood_fill_frontiers(flood_fillable_tensor, info)
+
+    flood_filled = flood_fillable_tensor.clone()
+
+    for batch_idx in range(input.size(0)):
+        flood_filled[batch_idx, :, :, :] = info[batch_idx]['flood_filled_mask']
+
     viz_data = [
         utils.vis_utils.get_transparancy_adjusted_input(
-            multi_channel_prediction
+            multi_channel_prediction,
         ),
         utils.vis_utils.get_transparancy_adjusted_input(input),
         utils.vis_utils.get_transparancy_adjusted_input(annotated_input),
@@ -69,15 +77,24 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
                 input[:, 3:, :, :]
             ],
             dim=1
+        )),
+
+        utils.vis_utils.get_transparancy_adjusted_input(torch.cat(
+            [
+                torch.zeros(flood_filled.size(0), 2, *(flood_filled.shape[2:])),
+                flood_filled.float(),
+                input[:, 3:, :, :]
+            ],
+            dim=1
         ))
     ]
 
     viz_data = torch.cat(viz_data, 0)
     save_image(viz_data.data.cpu(),
-               os.path.join('/tmp/exploration_viz.png'),
+               os.path.join('/tmp/' + filename + '.png'),
                nrow=viz_data.size(0), padding=2)
 
-    return flood_fill_frontiers(flood_fillable_tensor, info)
+    return info
 
 
 def flood_fill_frontiers(flood_fillable_tensor,
@@ -91,7 +108,7 @@ def flood_fill_frontiers(flood_fillable_tensor,
     """
     output = []
     for batch_idx in range(flood_fillable_tensor.size(0)):
-        np_array = flood_fillable_tensor[batch_idx, 0, :, :].numpy()
+        np_array = flood_fillable_tensor[batch_idx, 0, :, :].cpu().numpy()
 
         for frontier_group in info[batch_idx]['Frontiers']:
             # the borders should be padded for flood fill
