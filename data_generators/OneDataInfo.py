@@ -179,6 +179,66 @@ def parse_bounding_boxes_and_frontiers(bounding_boxes_list, frontier_cluster_lis
 
     return bounding_boxes, frontier_clusters
 
+class OneDataInfoBase:
+    def __init__(self, costmap: np.core.multiarray, info: dict):
+        """
+
+        :param costmap_image: input to the network H x W x 3 (3 channels: unknown, free, obstacle)
+        :param info: frontiers info dict
+        """
+        self.costmap = costmap
+        self.frontier_bounding_boxes, self.frontier_cluster_points = \
+            parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
+
+    def __len__(self):
+        return len(self.frontier_bounding_boxes)
+
+    def __getitem__(self, item):
+
+        rect = self.frontier_bounding_boxes[item]
+        frontiers = self.frontier_cluster_points[item]
+
+        ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
+        costmap_resized = cv2.resize(self.costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+        rect_resized = resize_rect(rect, ratio)
+        frontiers_resized = resize_frontiers(frontiers, ratio)
+
+        image_size = costmap_resized.shape
+        pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
+
+        # get the mask size
+        if const.MASK_SIZE_FROM_FRONTIER:
+            mask_size = (int(rect_resized[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
+                         int(rect_resized[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
+        else:
+            mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
+
+        costmap_pad = pad_costmap(costmap_resized, pad_image_size)
+        rect_pad = pad_rect(rect_resized, image_size, pad_image_size)
+        frontiers_pad = pad_frontiers(frontiers_resized, image_size, pad_image_size)
+        mask_pad = get_mask_image(rect_pad, mask_size, pad_image_size)
+        final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
+
+        # get the Area to be cropped as input
+        crop_rect = enlarge_rect(rect_pad, final_image_size)
+        # crop the final map
+        costmap_final = clip_image(costmap_pad, crop_rect)
+        mask_final = clip_image(mask_pad, crop_rect)
+        frontiers_final = clip_frontiers(frontiers_pad, crop_rect)
+
+        # normalize the images
+        input_image = np.dstack((costmap_final, mask_final)).astype(dtype=np.float32) / 255.0
+
+        # H * W * D -> D * H * W
+        input_image = input_image.transpose(2, 0, 1)
+
+        # return extra information as a dict of list of frontiers with only one element + order is (x, y, ...)
+        #  to be consistent with dataset with multiple frontiers in a single image
+        return input_image, \
+               {
+                   'Frontiers': [[(i[1], i[0], i[2]) for i in frontiers_final]],
+                   'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]]
+               }
 
 class OneDataInfo:
     def __init__(self, json_path):
