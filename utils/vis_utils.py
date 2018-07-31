@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import utils.constants
+
 import torch
 import math
 irange = range
@@ -10,14 +12,26 @@ def get_padded_occupancy_grid(occupancy_grid : torch.FloatTensor):
     :param occupancy_grid: B x 1 x H x W
     :return: padded occupancy grid B x 4 x H x W (occupancy grid is in channel 3)
     """
-    return torch.cat(
-            [
-                torch.zeros(occupancy_grid.size(0), 2, *(occupancy_grid.shape[2:])),
-                occupancy_grid,
-                torch.ones(occupancy_grid.size(0), 1, *(occupancy_grid.shape[2:]))
-            ],
-            dim=1
-        )
+    multi_channel_occupancy_grid = torch.cat(
+        [
+            torch.zeros(occupancy_grid.size(0), 2, *(occupancy_grid.shape[2:])),
+            occupancy_grid,
+            torch.ones(occupancy_grid.size(0), 1, *(occupancy_grid.shape[2:]))
+        ],
+        dim=1
+    )
+
+    # unknown
+    multi_channel_occupancy_grid[:, 0:1, :, :] = torch.mul(
+        occupancy_grid.gt(utils.constants.FREE_THRESHOLD),
+        occupancy_grid.lt(utils.constants.OBSTACLE_THRESHOLD)
+    )
+    # free
+    multi_channel_occupancy_grid[:, 1:2, :, :] = occupancy_grid.lt(utils.constants.FREE_THRESHOLD).float()
+    # obstacles
+    multi_channel_occupancy_grid[:, 2:3, :, :] = occupancy_grid.gt(utils.constants.OBSTACLE_THRESHOLD).float()
+
+    return multi_channel_occupancy_grid
 
 
 def get_transparancy_adjusted_input(multi_channel_input):

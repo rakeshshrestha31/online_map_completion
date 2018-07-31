@@ -191,11 +191,73 @@ class PartialMapDataset(Dataset):
 
         return output_image
 
-    def __getitem__(self, item):
+
+    @staticmethod
+    def convert_frontiers_to_image_coords(grouped_frontiers: typing.List[typing.List[dict]],
+                                          image_size: (int, int),
+                                          image_resolution: float,
+                                          costmap_size: (int, int),
+                                          costmap_resolution: float) \
+            -> typing.List[typing.List[typing.Tuple[int, int, float]]]:
+        """
+
+        :param grouped_frontiers:
+        :param image_size: (width, height)
+        :param image_resolution:
+        :param costmap_size: (width, height)
+        :return:
+        """
+        image_half_size = tuple([i / 2 for i in image_size])
+        costmap_half_size = tuple([i / 2 for i in costmap_size])
+
+        def convert_to_image_coords(costmap_coords):
+            nonlocal image_resolution
+            nonlocal image_half_size
+            nonlocal costmap_resolution
+            nonlocal costmap_half_size
+
+            world_coords = tuple(
+                (costmap_coords[i] - costmap_half_size[i]) * costmap_resolution
+                for i in range(2)
+            )
+
+            image_coords = tuple(
+                int(world_coords[i] / image_resolution + image_half_size[i])
+                for i in range(2)
+            )
+
+            if image_coords[0] < 0 or image_coords[0] >= image_size[0] \
+                or image_coords[1] < 0 or image_coords[1] >= image_size[1]:
+                print('[ERROR] frontier coordinates out of bound',
+                      'costmap coords', costmap_coords,
+                      'costmap size', costmap_size,
+                      'world coords', world_coords,
+                      'image coords', image_coords,
+                      'image size', image_size)
+
+            return image_coords
+
+        new_frontiers = [
+            [
+                convert_to_image_coords((i['x'], i['y'])) + (i['yaw'],)
+                for i in group
+                # if i['x'] < costmap_size[0] and i['y'] < costmap_size[1]
+            ]
+            for group in grouped_frontiers
+        ]
+
+        return new_frontiers
+
+
+    def __getitem__(self, item) -> (torch.FloatTensor, torch.FloatTensor, dict):
         """
 
         :param item: item index
-        :return: input (B x C x H x W) and target (B x 1 x H x W) where B-batch size, C-channel, W-width, H-height
+        :return: input (B x C x H x W), target (B x 1 x H x W), where B-batch size, C-channel, W-width, H-height
+                info about frontiers (dict),
+                (u, v) co-ordinates of origin (translation from image frame to world co-ordinates)
+                resolution (scale factor from image to world co-ordinates)
+                (i.e. [x, y] = [(u - center_u) * resolution, (v - center_v) * resolution]
         """
 
         info = None
@@ -258,12 +320,11 @@ class PartialMapDataset(Dataset):
         # ground_truth_image = cv2.resize(ground_truth_image, (utils.constants.WIDTH, utils.constants.HEIGHT))
 
         # gaussian blur (so that the correct prediction space is not a single pixel wide)
-        ground_truth_image = cv2.GaussianBlur(ground_truth_image, (3, 3), 0)
+        # ground_truth_image = cv2.GaussianBlur(ground_truth_image, (3, 3), 0)
+        # ground_truth_image = np.expand_dims(ground_truth_image, -1)
 
         # bounding_box_image = cv2.imread(self.dataset_meta_info[item]['bounding_box_file'], cv2.IMREAD_GRAYSCALE)
         bounding_box_image = self.get_bounding_box_image(info['BoundingBoxes'], original_costmap_size[:2])
-
-        ground_truth_image = np.expand_dims(ground_truth_image, -1)
 
         bounding_box_image = cv2.resize(
             bounding_box_image,
@@ -281,8 +342,6 @@ class PartialMapDataset(Dataset):
         )
         # bounding_box_image = cv2.resize(bounding_box_image, (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT))
 
-
-
         # dims H x W x C
         input_image = np.concatenate((costmap_image, bounding_box_image), axis=-1)
 
@@ -296,7 +355,13 @@ class PartialMapDataset(Dataset):
 
         ground_truth_image = ground_truth_image.astype(dtype=np.float32)
 
-        return input_image, ground_truth_image
+        info['Frontiers'] = self.convert_frontiers_to_image_coords(
+            info['Frontiers'],
+            (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT), best_resolution,
+            (original_costmap_size[1], original_costmap_size[0]), utils.constants.ORIGINAL_RESOLUTION
+        )
+        # todo convert to image coords for bounding boxes (if needed)
+        return input_image, ground_truth_image, info
 
 
 if __name__ == '__main__':
