@@ -103,7 +103,7 @@ class InfoGainServer:
                 image = image.cuda()
             output, _, _ = self.model(image)
 
-            info_gain = compute_expected_information_gain(image, output, [info], 'info_gain_srv')
+            info_gain = compute_expected_information_gain(image, output, [info], 'info_gain_srv{}'.format(i))
             msg = UInt64(info_gain[0]['information_gain'])
             response.info_gains.append(msg)
 
