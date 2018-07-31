@@ -94,20 +94,27 @@ class InfoGainServer:
         )
 
         response.info_gains = []
+        batch_input = []
+        batch_info = []
+
         for i in range(len(frontiers_data)):
             image, info = frontiers_data[i]
-            image = torch.from_numpy(image).unsqueeze(0)
-            image = Variable(image)
+            image = torch.from_numpy(image)
+            batch_input.append(image)
+            batch_info.append(info)
 
-            if self.args.cuda:
-                image = image.cuda()
-            output, _, _ = self.model(image)
+        batch_input = torch.stack(batch_input)
+        batch_input = Variable(batch_input)
 
-            info_gain = compute_expected_information_gain(image, output, [info], 'info_gain_srv{}'.format(i))
-            msg = UInt64(info_gain[0]['information_gain'])
+        if self.args.cuda:
+            batch_input = batch_input.cuda()
+        output, _, _ = self.model(batch_input)
+
+        info_gain = compute_expected_information_gain(batch_input, output, batch_info, 'info_gain_srv')
+
+        for i in range(len(info_gain)):
+            msg = UInt64(info_gain[i]['information_gain'])
             response.info_gains.append(msg)
-
-        # TODO: info gain for all frontiers
 
         return response
 
