@@ -89,7 +89,7 @@ class ResNet(nn.Module):
     def __init__(self, block, layers):
         self.inplanes = 64
         super(ResNet, self).__init__()
-        self.conv1 = nn.ConvTranspose2d(3, 64, kernel_size=7, stride=2, padding=3,
+        self.conv1 = nn.ConvTranspose2d(4, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -210,5 +210,45 @@ def resnet152():
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
     model = ResNet(Bottleneck, [3, 8, 36, 3])
-    
+
     return model
+
+
+if __name__ == '__main__':
+    import torch
+    from torch.autograd import Variable
+    import utils.constants
+
+    import sys
+
+    from models import resnet
+
+    batch_size = 4
+    input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+
+    models = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+
+    for model in models:
+        encoder = getattr(resnet, model)()
+        decoder = getattr(sys.modules[__name__], model)()
+
+        input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+        input = Variable(torch.FloatTensor(batch_size, 4, *input_size))
+
+        for is_cuda in [False]: # , True]:
+            if is_cuda:
+                input = input.cuda()
+                encoder = encoder.cuda()
+                decoder = decoder.cuda()
+            else:
+                input = input.cpu()
+                encoder = encoder.cpu()
+                decoder = decoder.cpu()
+
+            encoder_output = encoder(input)
+            encoder_activations = encoder.layer_outputs
+            encoder_activations['input'] = encoder_output
+
+            decoder_output = decoder(encoder_activations)
+
+            print('output: ', decoder_output.size())

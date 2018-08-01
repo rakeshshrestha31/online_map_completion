@@ -98,7 +98,7 @@ class ResNet(nn.Module):
     def __init__(self, block, layers):
         self.inplanes = 64
         super(ResNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+        self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -218,3 +218,31 @@ def resnet152(pretrained=False, **kwargs):
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
     return model
+
+
+if __name__ == '__main__':
+    import torch
+    from torch.autograd import Variable
+    import utils.constants
+
+    batch_size = 4
+    input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+    input = Variable(torch.FloatTensor(batch_size, 4, *input_size))
+
+    models = [resnet18, resnet34, resnet50, resnet101, resnet152]
+
+    for model in models:
+        model = model()
+        for is_cuda in [False]: # , True]:
+            if is_cuda:
+                input = input.cuda()
+                model = model.cuda()
+            else:
+                input = input.cpu()
+                model = model.cpu()
+
+            output = model(input)
+
+            print('output: ', output.size())
+
+

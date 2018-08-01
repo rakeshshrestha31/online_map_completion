@@ -7,9 +7,12 @@ VAE using resnet (without average pooling and FC) as encoder and corresponding t
 from models import resnet
 from models import resnet_transpose
 
+import utils.constants
+
 # pytorch imports
 import torch
 from torch import nn
+from torch.autograd import Variable
 
 class ResnetVAE(nn.Module):
     def __init__(self, resnet_version: str):
@@ -34,3 +37,8 @@ class ResnetVAE(nn.Module):
         decoder_output = self.decoder(encoder_activations)
 
         return decoder_output
+
+if __name__ == '__main__':
+    batch_size = 64
+    input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+    input = Variable(torch.FloatTensor(batch_size, 4, *input_size))
