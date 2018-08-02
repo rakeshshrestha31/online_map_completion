@@ -158,24 +158,24 @@ def parse_bounding_boxes_and_frontiers(bounding_boxes_list, frontier_cluster_lis
 
     for i in range(len(bounding_boxes_list)):
         bounding_box = bounding_boxes_list[i]
-        if bounding_box['height'] > const.FRONTIER_BOUNDING_BOX_MIN and \
-                bounding_box['width'] > const.FRONTIER_BOUNDING_BOX_MIN:
+        # if bounding_box['height'] > const.FRONTIER_BOUNDING_BOX_MIN and \
+        #         bounding_box['width'] > const.FRONTIER_BOUNDING_BOX_MIN:
 
-            rect = [bounding_box['y'],
-                    bounding_box['x'],
-                    bounding_box['height'],
-                    bounding_box['width']]
+        rect = [bounding_box['y'],
+                bounding_box['x'],
+                bounding_box['height'],
+                bounding_box['width']]
 
-            cluster = []
-            for j in range(len(frontier_cluster_list[i])):
-                frontier_dict = frontier_cluster_list[i][j]
-                frontier = [frontier_dict['y'],
-                            frontier_dict['x'],
-                            frontier_dict['yaw']]
-                cluster.append(frontier)
+        cluster = []
+        for j in range(len(frontier_cluster_list[i])):
+            frontier_dict = frontier_cluster_list[i][j]
+            frontier = [frontier_dict['y'],
+                        frontier_dict['x'],
+                        frontier_dict['yaw']]
+            cluster.append(frontier)
 
-            frontier_clusters.append(cluster)
-            bounding_boxes.append(rect)
+        frontier_clusters.append(cluster)
+        bounding_boxes.append(rect)
 
     return bounding_boxes, frontier_clusters
 

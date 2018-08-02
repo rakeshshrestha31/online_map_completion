@@ -31,7 +31,7 @@ MASK_SIZE_FROM_FRONTIER = True
 MAX_USE_EXPLORE_AREA = False
 
 # Considering loss only in unknown part
-LOSS_USE_ONLY_UNKNOWN = True
+LOSS_USE_ONLY_UNKNOWN = False
 
 # Considering variable cost weight for obstacle and free space
 
@@ -45,7 +45,7 @@ valid value [-1, 0, 1],
 VARIABLE_COST_WEIGHT = 1
 
 
-OBSTACLE_THRESHOLD = 0.7
-FREE_THRESHOLD = 0.3
+OBSTACLE_THRESHOLD = 0.5
+FREE_THRESHOLD = 0.5
 
 

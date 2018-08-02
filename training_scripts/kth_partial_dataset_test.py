@@ -87,7 +87,7 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
     viz_data = torch.cat(viz_data, 0)
     save_image(viz_data.data.cpu(),
                os.path.join('/tmp/stat_viz.png'),
-               nrow=1)
+               nrow=input.shape[0])
 
     stats = {
         'true_positives': torch.sum(true_positives).item(),
@@ -129,6 +129,11 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
+
+    result_dir = os.path.split(os.path.split(args.checkpoint)[0])[0]  # grandparents' directory
+    eval_result_dir = os.path.join(result_dir, 'eval_results')
+    if not os.path.exists(eval_result_dir):
+        os.mkdir(eval_result_dir)
 
     print('loading dataset')
     test_dataset = PartialMapDataset(args.test_dataset, args.original_dataset)
@@ -181,13 +186,17 @@ if __name__ == '__main__':
         batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
         batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        expected_info_gain = compute_expected_information_gain(input, recon_batch, info, 'expected')
-        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info, 'ground_truth')
+        expected_info_gain = compute_expected_information_gain(
+            input, recon_batch, info, os.path.join(eval_result_dir, 'expected'+str(batch_idx)+'.png')
+        )
+        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info,
+                                                                   os.path.join(eval_result_dir,
+                                                                   'GT' + str(batch_idx) + '.png'))
 
         # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
-        print('predicted info gain:', [i['information_gain'] for i in expected_info_gain])
-        print('actual info gain:', [i['information_gain'] for i in ground_truth_info_gain])
-        exit(0)
+        # print('predicted info gain:', [i['information_gain'] for i in expected_info_gain])
+        # print('actual info gain:', [i['information_gain'] for i in ground_truth_info_gain])
+        # exit(0)
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},

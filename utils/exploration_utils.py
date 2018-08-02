@@ -64,11 +64,23 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
         flood_filled[batch_idx, :, :, :] = info[batch_idx]['flood_filled_mask']
 
     viz_data = [
+
+        utils.vis_utils.get_transparancy_adjusted_input(input),
+
         utils.vis_utils.get_transparancy_adjusted_input(
             multi_channel_prediction,
         ),
-        utils.vis_utils.get_transparancy_adjusted_input(input),
-        utils.vis_utils.get_transparancy_adjusted_input(annotated_input),
+
+        # utils.vis_utils.get_transparancy_adjusted_input(annotated_input),
+
+        utils.vis_utils.get_transparancy_adjusted_input(torch.cat(
+            [
+                torch.zeros(flood_filled.size(0), 2, *(flood_filled.shape[2:])),
+                flood_filled.float(),
+                input[:, 3:, :, :]
+            ],
+            dim=1
+        )),
 
         utils.vis_utils.get_transparancy_adjusted_input(torch.cat(
             [
@@ -78,20 +90,12 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
             ],
             dim=1
         )),
-
-        utils.vis_utils.get_transparancy_adjusted_input(torch.cat(
-            [
-                torch.zeros(flood_filled.size(0), 2, *(flood_filled.shape[2:])),
-                flood_filled.float(),
-                input[:, 3:, :, :]
-            ],
-            dim=1
-        ))
     ]
 
     viz_data = torch.cat(viz_data, 0)
     save_image(viz_data.data.cpu(),
-               os.path.join('/tmp/' + filename + '.png'),
+               os.path.join('/tmp/', filename+'.png'),
+               # filename,
                nrow=input.size(0), padding=2)
 
     return info
