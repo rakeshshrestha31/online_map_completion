@@ -154,7 +154,7 @@ class ResNet(nn.Module):
             ('deconv2', nn.ConvTranspose2d(4, 1, kernel_size=1,
                                   bias=False)),
             ('bn2', nn.BatchNorm2d(1)),
-            ('relu2', nn.ReLU(inplace=True))
+            ('activation2', nn.Sigmoid())
         ])
 
         self.layer_outputs = {}
