@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
@@ -131,11 +132,15 @@ class ResNet(nn.Module):
                 bias=False
             )),
 
+            ('output_upsample1_batchnorm', nn.BatchNorm2d(64)),
+
             ('output_upsample2', nn.ConvTranspose2d(
                 64 * skip_connection_channel_expansion, 64, kernel_size=1,
                 bias=False
             )),
 
+            ('output_upsample2_batchnorm', nn.BatchNorm2d(64)),
+            
             ('maxunpool', nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)),
 
             ('deconv1', nn.ConvTranspose2d(64 * skip_connection_channel_expansion, 4, kernel_size=7, stride=2, padding=3, output_padding=1,
