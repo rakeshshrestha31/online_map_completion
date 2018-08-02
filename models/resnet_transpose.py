@@ -105,6 +105,7 @@ class ResNet(nn.Module):
 
         self.skip_connection_type = skip_connection_type
         if self.skip_connection_type not in ['concat', 'add', 'none']:
+            print('[WARN] Unknown skip connection option', skip_connection_type)
             self.skip_connection_type = 'none'
 
         skip_connection_channel_expansion = 2 if self.skip_connection_type == 'concat' else 1
@@ -137,7 +138,7 @@ class ResNet(nn.Module):
 
             ('maxunpool', nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)),
 
-            ('deconv1', nn.ConvTranspose2d(64, 4, kernel_size=7, stride=2, padding=3, output_padding=1,
+            ('deconv1', nn.ConvTranspose2d(64 * skip_connection_channel_expansion, 4, kernel_size=7, stride=2, padding=3, output_padding=1,
                                            bias=False)),
 
             ('bn1', nn.BatchNorm2d(4)),
@@ -160,7 +161,7 @@ class ResNet(nn.Module):
             'layer2': 'layer2',
             'layer1': 'layer1',
             'output_upsample2': 'maxpool',
-            # 'maxunpool': 'conv1'
+            'deconv1': 'conv1'
         }
 
         # Set the layers as attributes so that cuda stuffs can be applied
