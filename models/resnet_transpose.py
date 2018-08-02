@@ -258,6 +258,7 @@ if __name__ == '__main__':
     import sys
 
     from models import resnet
+    from utils.model_visualize import make_dot
 
     batch_size = 4
     latent_channels = 512
@@ -303,3 +304,5 @@ if __name__ == '__main__':
             decoder_output = decoder(encoder_activations)
 
             print('output: ', decoder_output.size())
+            dot = make_dot(decoder_output)
+            dot.render("/tmp/model", '.')
