@@ -99,7 +99,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, input_channels, skip_connection_type: str = 'concat'):
+    def __init__(self, block, layers, input_channels, skip_connection_type: str='concat', skip_connections : dict={}):
         self.inplanes = 512
         self.block = block
         super(ResNet, self).__init__()
@@ -111,7 +111,8 @@ class ResNet(nn.Module):
 
         skip_connection_channel_expansion = 2 if self.skip_connection_type == 'concat' else 1
 
-        self.input_upsample = None
+        # Dictionary to tell which previous layer's output a layer takes as skip connection (i.e. mapping from input of current layer: ouput of previous layer)
+        self.skip_connections = skip_connections
 
         self.layers = OrderedDict([
             # upsamples the latent encoding to be same as encoder output (before encoding)
@@ -135,39 +136,44 @@ class ResNet(nn.Module):
             ('output_upsample1_batchnorm', nn.BatchNorm2d(64)),
 
             ('output_upsample2', nn.ConvTranspose2d(
-                64 * skip_connection_channel_expansion, 64, kernel_size=1,
-                bias=False
+                64 * (skip_connection_channel_expansion if 'deconv1' in self.skip_connections else 1),
+                64,
+                kernel_size=1, bias=False
             )),
 
             ('output_upsample2_batchnorm', nn.BatchNorm2d(64)),
             
             ('maxunpool', nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)),
 
-            ('deconv1', nn.ConvTranspose2d(64 * skip_connection_channel_expansion, 4, kernel_size=7, stride=2, padding=3, output_padding=1,
-                                           bias=False)),
+            (
+                'deconv1',
+                nn.ConvTranspose2d(
+                    64 * (skip_connection_channel_expansion if 'deconv1' in self.skip_connections else 1),
+                    4,
+                    kernel_size=7, stride=2, padding=3, output_padding=1,
+                    bias=False
+                )
+             ),
 
             ('bn1', nn.BatchNorm2d(4)),
             ('relu1', nn.ReLU(inplace=True)),
 
             # final output deconv
 
-            ('deconv2', nn.ConvTranspose2d(4, 1, kernel_size=1,
-                                  bias=False)),
+            (
+                'deconv2',
+                nn.ConvTranspose2d(
+                    4 * (skip_connection_channel_expansion if 'deconv2' in self.skip_connections else 1),
+                    1,
+                    kernel_size=1,
+                    bias=False
+                )
+            ),
             ('bn2', nn.BatchNorm2d(1)),
             ('activation2', nn.Sigmoid())
         ])
 
         self.layer_outputs = {}
-
-        # Dictionary to tell which previous layer's output a layer takes as skip connection (i.e. mapping from input of current layer: ouput of previous layer)
-        self.skip_connections = {
-            'layer4': 'layer4',
-            'layer3': 'layer3',
-            'layer2': 'layer2',
-            'layer1': 'layer1',
-            'output_upsample2': 'maxpool',
-            'deconv1': 'conv1'
-        }
 
         # Set the layers as attributes so that cuda stuffs can be applied
         for layer_name, layer in self.layers.items():
@@ -205,7 +211,7 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, input_dict):
-        x = input_dict['input']
+        x = input_dict['decoder_input']
 
         self.layer_outputs = {}
 
@@ -284,57 +290,65 @@ class ResNet(nn.Module):
         return x
 
 
-def resnet18(input_channels, skip_connection_type='none'):
+def resnet18(input_channels, skip_connection_type='none', skip_connections={}):
     """Constructs a ResNet-18 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet(BasicBlock, [2, 2, 2, 2], input_channels, skip_connection_type)
+    model = ResNet(BasicBlock, [2, 2, 2, 2], input_channels, skip_connection_type, skip_connections)
 
     return model
 
 
-def resnet34(input_channels, skip_connection_type='none'):
+def resnet34(input_channels, skip_connection_type='none', skip_connections={}):
     """Constructs a ResNet-34 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+        skip_connection_type (string): skip connection from encoder to decoder type. One of {none, concat, add}
+        skip_connections (dict): dictionary of skip connection (key: layer name in decoder, value: layer name in encoder)
     """
-    model = ResNet(BasicBlock, [3, 4, 6, 3], input_channels, skip_connection_type)
+    model = ResNet(BasicBlock, [3, 4, 6, 3], input_channels, skip_connection_type, skip_connections)
 
     return model
 
 
-def resnet50(input_channels, skip_connection_type='none'):
+def resnet50(input_channels, skip_connection_type='none', skip_connections={}):
     """Constructs a ResNet-50 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+        skip_connection_type (string): skip connection from encoder to decoder type. One of {none, concat, add}
+        skip_connections (dict): dictionary of skip connection (key: layer name in decoder, value: layer name in encoder)
     """
-    model = ResNet(Bottleneck, [3, 4, 6, 3], input_channels, skip_connection_type)
+    model = ResNet(Bottleneck, [3, 4, 6, 3], input_channels, skip_connection_type, skip_connections)
 
     return model
 
 
-def resnet101(input_channels, skip_connection_type='none'):
+def resnet101(input_channels, skip_connection_type='none', skip_connections={}):
     """Constructs a ResNet-101 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+        skip_connection_type (string): skip connection from encoder to decoder type. One of {none, concat, add}
+        skip_connections (dict): dictionary of skip connection (key: layer name in decoder, value: layer name in encoder)
     """
-    model = ResNet(Bottleneck, [3, 4, 23, 3], input_channels, skip_connection_type)
+    model = ResNet(Bottleneck, [3, 4, 23, 3], input_channels, skip_connection_type, skip_connections)
 
     return model
 
 
-def resnet152(input_channels, skip_connection_type='none'):
+def resnet152(input_channels, skip_connection_type='none', skip_connections={}):
     """Constructs a ResNet-152 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
+        skip_connection_type (string): skip connection from encoder to decoder type. One of {none, concat, add}
+        skip_connections (dict): dictionary of skip connection (key: layer name in decoder, value: layer name in encoder)
     """
-    model = ResNet(Bottleneck, [3, 8, 36, 3], input_channels, skip_connection_type)
+    model = ResNet(Bottleneck, [3, 8, 36, 3], input_channels, skip_connection_type, skip_connections)
 
     return model
 
@@ -356,12 +370,22 @@ if __name__ == '__main__':
 
     models = ['resnet18', 'resnet34', 'resnet50'] # , 'resnet101', 'resnet152']
 
+    skip_connections = {
+        'layer4': 'layer4',
+        'layer3': 'layer3',
+        'layer2': 'layer2',
+        'layer1': 'layer1',
+        'output_upsample2': 'maxpool',
+        'deconv1': 'conv1',
+        'deconv2': 'input'
+    }
+
     for model in models:
         print('model', model)
         encoder = getattr(resnet, model)()
         for skip_connection_type in ['none', 'concat', 'add']:
             print('skip connection type', skip_connection_type)
-            decoder = getattr(sys.modules[__name__], model)(latent_channels, skip_connection_type)
+            decoder = getattr(sys.modules[__name__], model)(latent_channels, skip_connection_type, skip_connections)
 
             input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
             input = Variable(torch.empty(batch_size, 4, *input_size).uniform_(0, 1))
@@ -392,7 +416,7 @@ if __name__ == '__main__':
 
                 print('latent', latent_encoding_output.size())
 
-                encoder_activations['input'] = latent_encoding_output
+                encoder_activations['decoder_input'] = latent_encoding_output
 
                 decoder_output = decoder(encoder_activations)
                 print('output: ', decoder_output.size())

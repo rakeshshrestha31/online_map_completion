@@ -137,6 +137,8 @@ class ResNet(nn.Module):
     def forward(self, x):
         self.layer_outputs = {}
 
+        self.layer_outputs['input'] = x
+
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)

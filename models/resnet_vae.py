@@ -27,8 +27,18 @@ class ResnetVAE(nn.Module):
             exit(1)
         self.resnet_version = resnet_version
 
+        skip_connections = {
+            'layer4': 'layer4',
+            'layer3': 'layer3',
+            'layer2': 'layer2',
+            'layer1': 'layer1',
+            'output_upsample2': 'maxpool',
+            'deconv1': 'conv1',
+            'deconv2': 'input'
+        }
+
         self.encoder = getattr(resnet, self.resnet_version)()
-        self.decoder = getattr(resnet_transpose, self.resnet_version)(latent_encoding_channels, skip_connection_type)
+        self.decoder = getattr(resnet_transpose, self.resnet_version)(latent_encoding_channels, skip_connection_type, skip_connections)
         
         # ----------------------- Latent Mean ----------------------- #
         self.latent_mean_encoder = OrderedDict([
@@ -82,7 +92,7 @@ class ResnetVAE(nn.Module):
             x = layer(x)
         latent_logvariance_encoding = x
         
-        encoder_activations['input'] = self.reparameterize(latent_mean_encoding, latent_logvariance_encoding) 
+        encoder_activations['decoder_input'] = self.reparameterize(latent_mean_encoding, latent_logvariance_encoding)
 
         decoder_output = self.decoder(encoder_activations)
 
