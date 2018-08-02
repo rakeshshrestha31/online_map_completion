@@ -86,7 +86,7 @@ class ResnetVAE(nn.Module):
 
         decoder_output = self.decoder(encoder_activations)
 
-        return decoder_output
+        return decoder_output, latent_mean_encoding, latent_logvariance_encoding
 
     def reparameterize(self, mu: Variable, logvariance: Variable) -> Variable:
         """
@@ -130,7 +130,7 @@ if __name__ == '__main__':
                     input = input.cpu()
                     model = model.cpu()
 
-                output = model(input)
+                output, mu, logvariance = model(input)
                 print('output: ', output.size())
 
                 dot = make_dot(output)
