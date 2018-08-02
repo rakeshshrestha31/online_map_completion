@@ -140,9 +140,10 @@ class ResNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x, maxpool_indices = self.maxpool(x)
-
         self.layer_outputs['conv1'] = x
+
+        x, maxpool_indices = self.maxpool(x)
+        self.layer_outputs['maxpool'] = x
         self.layer_outputs['maxpool_indices'] = maxpool_indices
 
         x = self.layer1(x)
