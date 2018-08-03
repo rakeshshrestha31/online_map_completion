@@ -133,6 +133,7 @@ if __name__ == '__main__':
                         help='number of rotations to augment (min=1, no augmentation)')
     parser.add_argument("--resnet-version", type=int, default=18, metavar='N',
                         help='resnet version {18, 34, 50, 101, 152}')
+    parser.add_argument('--pretraining', action='store_true', default=False, help='Pretraining with input as ground truth')
     
     
     parser.add_argument('train_dataset', type=str, metavar='S',
@@ -151,6 +152,8 @@ if __name__ == '__main__':
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
     
+    if args.pretraining:
+        print('[WARN] only pretraining using ground truth as input!!!')
     model = ResnetVAE('resnet' + str(args.resnet_version), latent_encoding_channels=args.latent_size, skip_connection_type='concat')
     if args.cuda:
         model = model.cuda()
@@ -217,6 +220,10 @@ if __name__ == '__main__':
         train_kld_loss = 0
         step = (epoch - 1) * len(train_loader.dataset) + 1
         for batch_idx, (input, ground_truth, _) in enumerate(train_loader):
+            # pretraining: input is ground truth!
+            if args.pretraining:
+                input[:, :3] = ground_truth[:, :3]
+
             input = Variable(input)
             ground_truth = Variable(ground_truth)
             if args.cuda:
