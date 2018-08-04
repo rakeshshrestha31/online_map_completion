@@ -8,6 +8,7 @@ from models import resnet
 from models import resnet_transpose
 
 import utils.constants
+import numpy as np
 
 # pytorch imports
 import torch
@@ -16,17 +17,12 @@ from torch.autograd import Variable
 
 # standard library imports
 from collections import OrderedDict
+import typing
 
 class ResnetVAE(nn.Module):
-    def __init__(self, resnet_version: str, latent_encoding_channels: int, skip_connection_type: str = 'concat'):
+    def __init__(self, resnet_version: typing.Union[str, dict],
+                 latent_encoding_channels: int, skip_connection_type: str = 'concat'):
         super(ResnetVAE, self).__init__()
-
-        self.resnet_versions = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
-        if resnet_version not in self.resnet_versions:
-            print('Unknown resnet version ', resnet_version)
-            exit(1)
-        self.resnet_version = resnet_version
-
         skip_connections = {
             'layer4': 'layer4',
             'layer3': 'layer3',
@@ -37,9 +33,29 @@ class ResnetVAE(nn.Module):
             'deconv2': 'input'
         }
 
-        self.encoder = getattr(resnet, self.resnet_version)()
-        self.decoder = getattr(resnet_transpose, self.resnet_version)(latent_encoding_channels, skip_connection_type, skip_connections)
-        
+        self.resnet_versions = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+        if isinstance(resnet_version, str):
+            if resnet_version not in self.resnet_versions:
+                print('Unknown resnet version ', resnet_version)
+                exit(1)
+            self.resnet_version = resnet_version
+            self.encoder = getattr(resnet, self.resnet_version)()
+            self.decoder = getattr(resnet_transpose, self.resnet_version)(latent_encoding_channels, skip_connection_type, skip_connections)
+        elif isinstance(resnet_version, dict):
+            block_lengths = resnet_version['block_lengths']
+            if len(block_lengths) != 4:
+                print('resnet blocks should be exactly 4, given: ', len(block_lengths))
+                exit(1)
+            self.encoder = resnet.ResNet(
+                getattr(resnet, resnet_version['block']),
+                block_lengths
+            )
+            self.decoder = resnet_transpose.ResNet(
+                getattr(resnet_transpose, resnet_version['block']),
+                block_lengths,
+                latent_encoding_channels, skip_connection_type, skip_connections
+            )
+
         # ----------------------- Latent Mean ----------------------- #
         self.latent_mean_encoder = OrderedDict([
             ('latent_mean_conv', nn.Conv2d(
@@ -121,7 +137,13 @@ if __name__ == '__main__':
 
     input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
 
-    models = ['resnet18', 'resnet34', 'resnet50'] # , 'resnet101', 'resnet152']
+    models = [
+        {
+            'block_lengths': [1, 1, 1, 1],
+            'block': 'BasicBlock'
+        },
+        'resnet18', 'resnet34', 'resnet50'
+    ] # , 'resnet101', 'resnet152']
 
     for model_name in models:
         print('model', model_name)
