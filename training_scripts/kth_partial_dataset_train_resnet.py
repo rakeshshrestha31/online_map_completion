@@ -11,7 +11,7 @@ from utils import nn_module_utils
 import utils.constants
 from utils.tensorboard_logger import Logger
 import utils.vis_utils
-from utils.vis_utils import save_image
+from utils.vis_utils import save_image, make_grid
 from utils.model_visualize import make_dot, make_dot_from_trace
 
 
@@ -212,6 +212,37 @@ if __name__ == '__main__':
     #     batch_size=args.batch_size, shuffle=True, **kwargs
     # )
 
+    def get_viz_tensor(input, ground_truth, recon, n):
+        input_for_viz = input[:n]
+        
+        ground_truth_for_viz = utils.vis_utils.get_padded_occupancy_grid(ground_truth[:n])
+        ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+
+        ######## put all the non frontiers from input
+        frontier_mask = input[:, -1:, :, :]
+        frontier_mask.expand(*(input.size()))
+
+        # non_frontier_mask = 1.0 - frontier_mask
+        # non_frontier_input = input_for_viz.clone()
+        # non_frontier_input = torch.mul(non_frontier_input, non_frontier_mask)
+
+        recon_for_viz = utils.vis_utils.get_padded_occupancy_grid(recon[:n])
+        # recon_for_viz += non_frontier_input
+        recon_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
+
+        comparison = torch.cat([
+            input_for_viz, ground_truth_for_viz, recon_for_viz
+        ])
+
+        comparison_trans = torch.tensor(comparison)
+        comparison_trans = utils.vis_utils.get_transparancy_adjusted_input(comparison_trans)
+
+        # only reserve obstacles (blue channel)
+        comparison[:, 0:2, :, :] = 0
+
+        comparison_concat = torch.cat([comparison_trans, comparison])
+
+        return comparison_concat
 
     def train(epoch):
         model.train()
@@ -258,6 +289,23 @@ if __name__ == '__main__':
                 logger.scalar_dict_summary({
                     'batch_loss': float(loss.item())
                 }, step)
+
+                # Log values and gradients of the parameters (histogram summary)
+                for tag, value in model.named_parameters():
+                    tag = tag.replace('.', '/')
+                    logger.histo_summary(tag, value.data.cpu().numpy(), step+1)
+                    logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), step)
+                
+                # Log training images
+                n = min(input.size(0), 32)
+                comparison_concat = get_viz_tensor(input, ground_truth, recon_batch, n)
+                grid = make_grid(
+                    comparison_concat.data.cpu(),
+                    nrow=n
+                )
+                ndarr = grid.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                logger.image_summary('training_result', [ndarr], step)
+
                 step += batch_idx
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -327,37 +375,9 @@ if __name__ == '__main__':
                 #
                 #     recon_batches.append(recon_batch2)
                 recon, _, _ = model(input)
-
+                comparison_concat = get_viz_tensor(input, ground_truth, recon, n)
                 # input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
-                input_for_viz = input[:n]
-
-                ground_truth_for_viz = utils.vis_utils.get_padded_occupancy_grid(ground_truth[:n])
-                ground_truth_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
-
-                ######## put all the non frontiers from input
-                frontier_mask = input[:, -1:, :, :]
-                frontier_mask.expand(*(input.size()))
-
-                # non_frontier_mask = 1.0 - frontier_mask
-                # non_frontier_input = input_for_viz.clone()
-                # non_frontier_input = torch.mul(non_frontier_input, non_frontier_mask)
-
-                recon_for_viz = utils.vis_utils.get_padded_occupancy_grid(recon[:n])
-                # recon_for_viz += non_frontier_input
-                recon_for_viz[:, -1, :, :] = input_for_viz[:, -1, :, :]
-
-                comparison = torch.cat([
-                    input_for_viz, ground_truth_for_viz, recon_for_viz
-                ])
-
-                comparison_trans = torch.tensor(comparison)
-                comparison_trans = utils.vis_utils.get_transparancy_adjusted_input(comparison_trans)
-
-                # only reserve obstacles (blue channel)
-                comparison[:, 0:2, :, :] = 0
-
-                comparison_concate = torch.cat([comparison_trans, comparison])
-                save_image(comparison_concate.data.cpu(),
+                save_image(comparison_concat.data.cpu(),
                            os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                         'results/reconstruction_' + str(epoch) + '.png'),
                            nrow=n)
