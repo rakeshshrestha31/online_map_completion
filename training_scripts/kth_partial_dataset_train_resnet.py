@@ -117,6 +117,8 @@ if __name__ == '__main__':
                         help='Default=checkpoints/model_best.pth.tar')
     parser.add_argument('--temp-checkpoint', type=str, default="checkpoint.pth.tar",
                         help='Default=checkpoints/model_best.pth.tar')
+    parser.add_argument('--log-dir', type=str, default="./logs")
+    parser.add_argument('--results-dir', type=str, default="./results")
 
     parser.add_argument('--load-weight', dest='is_load_weight', action='store_true', help='Load weight')
     parser.add_argument('--no-load-weight', dest='is_load_weight', action='store_false', help='Don\'t Load weight')
@@ -182,8 +184,8 @@ if __name__ == '__main__':
         'epoch_loss', 'epoch_accuracy', 'batch_loss', 'batch_accuracy', 'test_loss'
     ], checkpoint_dir)
 
-    logger = Logger('./logs')
-    os.system("mkdir -p ./results")
+    logger = Logger(args.log_dir) # './logs')
+    os.system('mkdir -p "' + args.results_dir + '"')
 
     print('loading train dataset')
     train_dataset       = PartialMapDataset(args.train_dataset, args.original_dataset)
@@ -378,8 +380,9 @@ if __name__ == '__main__':
                 comparison_concat = get_viz_tensor(input, ground_truth, recon, n)
                 # input_for_viz = utils.vis_utils.get_transparancy_adjusted_input(input[:n])
                 save_image(comparison_concat.data.cpu(),
-                           os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                                        'results/reconstruction_' + str(epoch) + '.png'),
+                           os.path.join(#os.path.abspath(os.path.dirname(__file__)),
+                                        args.results_dir,   
+                                        'reconstruction_' + str(epoch) + '.png'),
                            nrow=n)
 
         # test_loss /= len(test_loader.dataset)
