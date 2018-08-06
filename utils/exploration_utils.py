@@ -94,8 +94,8 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
 
     viz_data = torch.cat(viz_data, 0)
     save_image(viz_data.data.cpu(),
-               os.path.join('/tmp/', filename+'.png'),
-               # filename,
+               # os.path.join('/tmp/', filename+'.png'),
+               filename,
                nrow=input.size(0), padding=2)
 
     return info

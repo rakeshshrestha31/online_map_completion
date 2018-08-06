@@ -342,7 +342,9 @@ class OneDataInfo:
         return input_image, input_gt, \
                {
                    'Frontiers': [[(i[1], i[0], i[2]) for i in frontiers_final]],
-                   'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]]
+                   'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]],
+                   'floorplanName': self.get_map_name(),
+                   'index': item
                }
 
 
