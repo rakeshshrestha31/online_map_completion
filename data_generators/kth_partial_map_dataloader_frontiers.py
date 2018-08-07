@@ -82,7 +82,7 @@ class PartialMapDataset(Dataset):
             raise IndexError("Error index when get item.")
 
         data_index = 0
-        while not index < self.accumulate_lens[data_index]:
+        while self.accumulate_lens[data_index] <= index:
             data_index += 1
 
         if data_index != 0:

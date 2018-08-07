@@ -245,14 +245,19 @@ class OneDataInfo:
         self.frontier_bounding_boxes = []
         self.frontier_cluster_points = []
         self.json_path = ""
+        self._lens = 0
         self.load(json_path)
 
     def load(self, json_path):
         self.json_path = json_path
         with open(self.json_path, 'r') as f:
             info = json.load(f)
-            self.frontier_bounding_boxes, self.frontier_cluster_points = \
-                parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
+            if info["BoundingBoxes"] is None or info["Frontiers"] is None:
+                self._lens = 0
+            else:
+                self.frontier_bounding_boxes, self.frontier_cluster_points = \
+                    parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
+                self._lens = len(self.frontier_bounding_boxes)
 
     def get_map_iteration(self):
         json_files_split = self.json_path.split('/')
@@ -298,7 +303,7 @@ class OneDataInfo:
             return costmap_files, True
 
     def __len__(self):
-        return len(self.frontier_bounding_boxes)
+        return self._lens
 
     def __getitem__(self, args):
         item, gt_dict = args
