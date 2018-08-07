@@ -260,15 +260,17 @@ if __name__ == '__main__':
         train_kld_loss = 0
         step = (epoch - 1) * len(train_loader.dataset) + 1
         for batch_idx, (input, ground_truth, _) in enumerate(train_loader):
-            # pretraining: input is ground truth!
-            if args.pretraining:
-                input[:, :3] = ground_truth[:, :3]
-
-            input = Variable(input)
-            ground_truth = Variable(ground_truth)
             if args.cuda:
                 input = input.cuda()
                 ground_truth = ground_truth.cuda()
+
+            # pretraining: input is ground truth!
+            if args.pretraining:
+                padded_gt = utils.vis_utils.get_padded_occupancy_grid(ground_truth)
+                input[:, :3] = padded_gt[:, :3]
+
+            input = Variable(input)
+            ground_truth = Variable(ground_truth)
 
             optimizer.zero_grad()
             recon_batch, mu, logvariance = model(input)  # original_data) #
