@@ -148,6 +148,8 @@ if __name__ == '__main__':
 
     model = ResidualFullyConvVAE((utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH),
                                  latent_encoding_channels=args.latent_size, skip_connection_type='concat')  # 'add')  #
+    # set model on eval mode
+    model = model.eval()
 
     if args.cuda:
         model = model.cuda()
@@ -175,39 +177,40 @@ if __name__ == '__main__':
     all_information_gain = []
     all_information_gain_GT = []
 
-    for batch_idx, (input, ground_truth, info) in enumerate(test_loader):
-        if batch_idx % 10 == 0:
-            print('Batch: {} [{}/{} ({:.0f}%)]\t'.format(
-                batch_idx, batch_idx * input.size(0), len(test_loader.dataset),
-                100. * batch_idx / len(test_loader)))
+    with torch.no_grad():  # avoid computation of gradients during test
+        for batch_idx, (input, ground_truth, info) in enumerate(test_loader):
+            if batch_idx % 10 == 0:
+                print('Batch: {} [{}/{} ({:.0f}%)]\t'.format(
+                    batch_idx, batch_idx * input.size(0), len(test_loader.dataset),
+                    100. * batch_idx / len(test_loader)))
 
-        input = Variable(input)
-        ground_truth = Variable(ground_truth)
-        if args.cuda:
-            input = input.cuda()
-            ground_truth = ground_truth.cuda()
+            input = Variable(input)
+            ground_truth = Variable(ground_truth)
+            if args.cuda:
+                input = input.cuda()
+                ground_truth = ground_truth.cuda()
 
-        recon_batch, mu, logvariance = model(input)  # original_data) #
-        batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
-        batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
+            recon_batch, mu, logvariance = model(input)  # original_data) #
+            batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
+            batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-        expected_info_gain = compute_expected_information_gain(
-            input, recon_batch, info, os.path.join(eval_result_dir, 'expected'+str(batch_idx)+'.png')
-        )
-        ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info,
-                                                                   os.path.join(eval_result_dir,
-                                                                   'GT' + str(batch_idx) + '.png'))
+            expected_info_gain = compute_expected_information_gain(
+                input, recon_batch, info, os.path.join(eval_result_dir, 'expected'+str(batch_idx)+'.png')
+            )
+            ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info,
+                                                                       os.path.join(eval_result_dir,
+                                                                       'GT' + str(batch_idx) + '.png'))
 
-        batch_information_gain = [int(i['information_gain']) for i in expected_info_gain]
-        batch_information_gain_gt = [int(i['information_gain']) for i in ground_truth_info_gain]
+            batch_information_gain = [int(i['information_gain']) for i in expected_info_gain]
+            batch_information_gain_gt = [int(i['information_gain']) for i in ground_truth_info_gain]
 
-        all_information_gain.extend(batch_information_gain)
-        all_information_gain_GT.extend(batch_information_gain_gt)
-        # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
+            all_information_gain.extend(batch_information_gain)
+            all_information_gain_GT.extend(batch_information_gain_gt)
+            # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
 
-        # print('predicted info gain:', batch_information_gain)
-        # print('actual info gain:', batch_information_gain_gt)
-        # break
+            # print('predicted info gain:', batch_information_gain)
+            # print('actual info gain:', batch_information_gain_gt)
+            # break
 
     overall_stats = functools.reduce(
         lambda sum, current: {i: sum[i] + current[i] for i in current},

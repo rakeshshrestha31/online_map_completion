@@ -156,7 +156,14 @@ if __name__ == '__main__':
     
     if args.pretraining:
         print('[WARN] only pretraining using ground truth as input!!!')
-    model = ResnetVAE('resnet' + str(args.resnet_version), latent_encoding_channels=args.latent_size, skip_connection_type='concat')
+    # model = ResnetVAE('resnet' + str(args.resnet_version), latent_encoding_channels=args.latent_size, skip_connection_type='concat')
+    model = ResnetVAE(
+        {
+            'block_lengths': [1, 1, 1, 1],
+            'block': 'BasicBlock'
+        },
+        latent_encoding_channels=args.latent_size, skip_connection_type='concat'
+    )
     if args.cuda:
         model = model.cuda()
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
