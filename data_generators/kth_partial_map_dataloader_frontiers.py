@@ -8,6 +8,7 @@ import utils
 from kth.FloorPlanGraph import FloorPlanGraph
 import utils.constants
 from data_generators.OneDataInfo import OneDataInfo
+from utils.generator_utils import collate_without_batching_dict
 
 # pytorch imports
 import torch
@@ -147,7 +148,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = PartialMapDataset(args.partial_dataset_dir, args.original_dataset_dir)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.is_shuffle, num_workers=1)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_without_batching_dict,
+                            shuffle=args.is_shuffle, num_workers=1)
 
     for batch_idx, batch_data in enumerate(dataloader):
         input, target = batch_data

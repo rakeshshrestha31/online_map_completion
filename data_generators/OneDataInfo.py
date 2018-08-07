@@ -254,9 +254,22 @@ class OneDataInfo:
             self.frontier_bounding_boxes, self.frontier_cluster_points = \
                 parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
 
+    def get_map_iteration(self):
+        json_files_split = self.json_path.split('/')
+        return int(json_files_split[-2])
+
     def get_map_name(self):
         json_files_split = self.json_path.split('/')
         return json_files_split[-3]
+
+    def get_plan_num(self):
+        regex = re.compile(r'.*info(\d+).json')
+        result = re.search(regex, self.json_path)
+        if result is None:
+            return 0
+        else:
+            plan_num = result.group(1)
+            return plan_num
 
     def get_costmap_path(self):
         regex = re.compile(r'.*info(\d+).json')
@@ -343,7 +356,9 @@ class OneDataInfo:
                {
                    'Frontiers': [[(i[1], i[0], i[2]) for i in frontiers_final]],
                    'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]],
-                   'floorplanName': self.get_map_name(),
+                   'map_name': self.get_map_name(),
+                   'map_iteration': self.get_map_iteration(),
+                   'plan_num': self.get_plan_num(),
                    'index': item
                }
 
@@ -357,12 +372,12 @@ if __name__ == "__main__":
     floorplan_dict = dict(zip(xml_names, floorplans))
 
     json_path = "/home/bird/data/floorplan_results_split/training/middle/50010539/1/info4.json"
-    info = OneDataInfo(json_path)
-    input, gt, frontiers = info.__getitem__(0, floorplan_dict)
+    one_data = OneDataInfo(json_path)
+    input, gt, info = one_data.__getitem__((0, floorplan_dict))
     input_image = input.transpose(1, 2, 0)
     input_image[:, :, 3] = input_image[:, :, 3] * 0.5 + 0.5
     input_image[:, :, 2].fill(0)
-    for frontier in frontiers:
+    for frontier in info["Frontiers"][0]:
         input_image[frontier[0], frontier[1], 2] = 1.0
 
     img_255 = (input_image * 255).astype(np.uint8)
