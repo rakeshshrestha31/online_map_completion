@@ -111,6 +111,7 @@ def compute_model_stats(input, reconstructed_occupancy_grid, ground_truth_occupa
 
     return stats
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VAE KTH partial map training')
     parser.add_argument('--batch-size', type=int, default=32, metavar='N',
@@ -194,10 +195,10 @@ if __name__ == '__main__':
             batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
             batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-            expected_info_gain = compute_expected_information_gain(
+            expected_info_gain, _ = compute_expected_information_gain(
                 input, recon_batch, info, os.path.join(eval_result_dir, 'expected'+str(batch_idx)+'.png')
             )
-            ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info,
+            ground_truth_info_gain, _ = compute_expected_information_gain(input, ground_truth, info,
                                                                        os.path.join(eval_result_dir,
                                                                        'GT' + str(batch_idx) + '.png'))
 
