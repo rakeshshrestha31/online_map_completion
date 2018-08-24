@@ -275,35 +275,72 @@ def visualize_average_floorplan(data_ig_gt, data_ig, data_no_ig, floorplan_name,
     plt.show()
 
 
+def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
+
+    plt.clf()
+    for idx in range(len(avg_tests)):
+        x_data = avg_tests[idx][floorplan_name][data_type]["x"]
+        y_data = avg_tests[idx][floorplan_name][data_type]["y"]
+        plt.plot(x_data, y_data, label= test_labels[idx])
+
+    x_label, y_label = getXYLabel(data_type)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.legend(loc='lower right')
+    plt.title("{}".format(floorplan_name))
+    plt.show()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluate Exploration Results')
-    parser.add_argument('info_gain_results_dir', type=str, metavar='S',
-                        help='results directory with information gain')
-    parser.add_argument('info_gain_gt_results_dir', type=str, metavar='S',
-                        help='results directory with information gain')
-    parser.add_argument('no_info_gain_results_dir', type=str, metavar='S',
-                        help='results directory without information gain')
+    parser.add_argument('results_dirs', type=str, metavar='S', nargs="+",
+                        help='result directories, each directory corresponding to an experiment')
+    parser.add_argument('--result_labels', type=str, metavar='S', nargs="+",
+                        help='result labels, corresponding to each result directories')
     parser.add_argument('--repeat_times', type=int, default=10, metavar='N',
                         help='repeat times for each floorplan')
 
     args = parser.parse_args()
 
-    dir_info_gain = args.info_gain_results_dir
-    dir_info_gain_gt = args.info_gain_gt_results_dir
-    dir_no_info_gain = args.no_info_gain_results_dir
+    directories = args.results_dirs
+    labels = args.result_labels
     repeat = args.repeat_times
 
-    data_no_ig = InfoDataset(dir_no_info_gain, repeat)
-    data_ig = InfoDataset(dir_info_gain, repeat)
-    data_ig_gt = InfoDataset(dir_info_gain_gt, repeat)
+    all_tests = []
+    # all_explore_data = []
+    all_avg_floorplan_results = []
 
-    explore_data_no_ig = data_no_ig.aggregate_exploration_data()
-    explore_data_ig = data_ig.aggregate_exploration_data()
-    explore_data_ig_gt = data_ig_gt.aggregate_exploration_data()
+    for directory in directories:
+        one_test = InfoDataset(directory, repeat)
+        all_tests.append(one_test)
+        # all_explore_data.append(one_test.aggregate_exploration_data())
+        all_avg_floorplan_results.append(one_test.average_floorplan_data())
 
-    avg_floorplan_data_no_ig = data_no_ig.average_floorplan_data()
-    avg_floorplan_data_ig = data_ig.average_floorplan_data()
-    avg_floorplan_data_ig_gt = data_ig_gt.average_floorplan_data()
+    common_floorplan = all_tests[0].data.keys()
+
+    for i in range(len(all_tests)):
+        common_floorplan = common_floorplan & all_tests[i].data.keys()
+
+    for floorplan in common_floorplan:
+        visualize_floorplan(all_avg_floorplan_results, labels, floorplan, data_type=TRAJECTORY_LABEL)
+
+
+    # dir_info_gain = args.results_dirs
+    # dir_info_gain_gt = args.info_gain_gt_results_dir
+    # dir_no_info_gain = args.no_info_gain_results_dir
+    #
+    #
+    # data_no_ig = InfoDataset(dir_no_info_gain, repeat)
+    # data_ig = InfoDataset(dir_info_gain, repeat)
+    # data_ig_gt = InfoDataset(dir_info_gain_gt, repeat)
+    #
+    # explore_data_no_ig = data_no_ig.aggregate_exploration_data()
+    # explore_data_ig = data_ig.aggregate_exploration_data()
+    # explore_data_ig_gt = data_ig_gt.aggregate_exploration_data()
+    #
+    # avg_floorplan_data_no_ig = data_no_ig.average_floorplan_data()
+    # avg_floorplan_data_ig = data_ig.average_floorplan_data()
+    # avg_floorplan_data_ig_gt = data_ig_gt.average_floorplan_data()
 
     # avg_dataset_ig = data_ig.average_dataset()
     # avg_dataset_no_ig = data_no_ig.average_dataset()
@@ -313,23 +350,23 @@ if __name__ == "__main__":
     #          label='average_dataset_no_ig')
     # plt.show()
 
-    keys_no_ig = explore_data_no_ig.keys()
-    keys_ig = explore_data_ig.keys()
-    keys_ig_gt = explore_data_ig_gt.keys()
-
-    keys_common = keys_no_ig & keys_ig & keys_ig_gt
-
-    for key in keys_common:
-
-        visualize_average_floorplan(data_ig=avg_floorplan_data_ig, data_ig_gt=avg_floorplan_data_ig_gt,
-                                    data_no_ig=avg_floorplan_data_no_ig, floorplan_name=key, data_type=SIM_TIME_LABEL)
-
-        visualize_average_floorplan(data_ig=avg_floorplan_data_ig, data_ig_gt=avg_floorplan_data_ig_gt,
-                                    data_no_ig=avg_floorplan_data_no_ig, floorplan_name=key, data_type=TRAJECTORY_LABEL)
-
-        floorplan_data_no_ig = explore_data_no_ig[key]
-        floorplan_data_ig = explore_data_ig[key]
-        floorplan_data_ig_gt = explore_data_ig_gt[key]
+    # keys_no_ig = explore_data_no_ig.keys()
+    # keys_ig = explore_data_ig.keys()
+    # keys_ig_gt = explore_data_ig_gt.keys()
+    #
+    # keys_common = keys_no_ig & keys_ig & keys_ig_gt
+    #
+    # for key in keys_common:
+    #
+    #     visualize_average_floorplan(data_ig=avg_floorplan_data_ig, data_ig_gt=avg_floorplan_data_ig_gt,
+    #                                 data_no_ig=avg_floorplan_data_no_ig, floorplan_name=key, data_type=SIM_TIME_LABEL)
+    #
+    #     visualize_average_floorplan(data_ig=avg_floorplan_data_ig, data_ig_gt=avg_floorplan_data_ig_gt,
+    #                                 data_no_ig=avg_floorplan_data_no_ig, floorplan_name=key, data_type=TRAJECTORY_LABEL)
+    #
+    #     floorplan_data_no_ig = explore_data_no_ig[key]
+    #     floorplan_data_ig = explore_data_ig[key]
+    #     floorplan_data_ig_gt = explore_data_ig_gt[key]
 
         # for t in range(repeat):
         #     one_exploration_no_ig = floorplan_data_no_ig[t]
