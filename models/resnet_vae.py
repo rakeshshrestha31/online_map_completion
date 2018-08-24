@@ -24,14 +24,17 @@ class ResnetVAE(nn.Module):
                  latent_encoding_channels: int, skip_connection_type: str = 'concat'):
         super(ResnetVAE, self).__init__()
         skip_connections = {
-            'layer4': 'layer4',
-            'layer3': 'layer3',
-            'layer2': 'layer2',
-            'layer1': 'layer1',
-            'output_upsample2': 'maxpool',
-            'deconv1': 'conv1',
-            'deconv2': 'input'
+            # 'layer4': 'layer4',
+            # 'layer3': 'layer3',
+            # 'layer2': 'layer2',
+            # 'layer1': 'layer1',
+            # 'output_upsample2': 'maxpool',
+            # 'deconv1': 'conv1',
+            # 'deconv2': 'input'
         }
+
+        if not len(skip_connections):
+            skip_connection_type = 'none'
 
         self.resnet_versions = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
         if isinstance(resnet_version, str):
@@ -147,7 +150,7 @@ if __name__ == '__main__':
 
     for model_name in models:
         print('model', model_name)
-        for skip_connection_type in ['none', 'concat', 'add']:
+        for skip_connection_type in ['concat', 'none', 'add']:
             print('skip connection type', skip_connection_type)
             model = ResnetVAE(model_name, latent_channels, skip_connection_type)
             input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
