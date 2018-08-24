@@ -194,6 +194,7 @@ class InfoDataset:
 
         return average_data
 
+    # deprecated!!!
     def average_dataset(self):
         floorplan_names = self.data.keys()
         average_floorplan_data = self.average_floorplan_data()
