@@ -160,7 +160,6 @@ def parse_bounding_boxes_and_frontiers(bounding_boxes_list, frontier_cluster_lis
         bounding_box = bounding_boxes_list[i]
         if bounding_box['height'] > const.FRONTIER_BOUNDING_BOX_MIN and \
                 bounding_box['width'] > const.FRONTIER_BOUNDING_BOX_MIN:
-
             rect = [bounding_box['y'],
                     bounding_box['x'],
                     bounding_box['height'],
@@ -179,14 +178,67 @@ def parse_bounding_boxes_and_frontiers(bounding_boxes_list, frontier_cluster_lis
 
     return bounding_boxes, frontier_clusters
 
-class OneDataInfoBase:
-    def __init__(self, costmap: np.core.multiarray, info: dict):
-        """
 
+def resize_crop_data(costmap, gt, frontiers, rect):
+
+    ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
+
+    if abs(ratio - 1) > 1e-6:
+        costmap_resized = cv2.resize(costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+        gt_resized = cv2.resize(gt, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+        rect_resized = resize_rect(rect, ratio)
+        frontiers_resized = resize_frontiers(frontiers, ratio)
+    else:
+        costmap_resized = costmap
+        gt_resized = gt
+        rect_resized = rect
+        frontiers_resized = frontiers
+
+    image_size = costmap_resized.shape
+    pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
+
+    # get the mask size
+    if const.MASK_SIZE_FROM_FRONTIER:
+        mask_size = (int(rect_resized[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
+                     int(rect_resized[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
+    else:
+        mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
+
+    gt_pad = pad_image(gt_resized, pad_image_size)
+    costmap_pad = pad_costmap(costmap_resized, pad_image_size)
+    rect_pad = pad_rect(rect_resized, image_size, pad_image_size)
+    frontiers_pad = pad_frontiers(frontiers_resized, image_size, pad_image_size)
+    mask_pad = get_mask_image(rect_pad, mask_size, pad_image_size)
+    final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
+
+    # get the Area to be cropped as input
+    crop_rect = enlarge_rect(rect_pad, final_image_size)
+    # crop the final map
+    costmap_final = clip_image(costmap_pad, crop_rect)
+    gt_final = clip_image(gt_pad, crop_rect)
+    mask_final = clip_image(mask_pad, crop_rect)
+    frontiers_final = clip_frontiers(frontiers_pad, crop_rect)
+
+    # normalize the images
+    input_image = np.dstack((costmap_final, mask_final)).astype(dtype=np.float32) / 255.0
+    input_gt = gt_final.astype(dtype=np.float32) / 255.0
+    input_gt = np.expand_dims(input_gt, -1)
+
+    # H * W * D -> D * H * W
+    input_image = input_image.transpose(2, 0, 1)
+    input_gt = input_gt.transpose(2, 0, 1)
+
+    return input_image, input_gt, frontiers_final, crop_rect
+
+
+class OneDataInfoBase:
+    def __init__(self, costmap: np.core.multiarray, gt: np.core.multiarray, info: dict):
+        """
         :param costmap_image: input to the network H x W x 3 (3 channels: unknown, free, obstacle)
         :param info: frontiers info dict
         """
         self.costmap = costmap
+        self.gt = gt
         self.frontier_bounding_boxes, self.frontier_cluster_points = \
             parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
 
@@ -199,109 +251,16 @@ class OneDataInfoBase:
         frontiers = self.frontier_cluster_points[item]
 
         ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
-        costmap_resized = cv2.resize(self.costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
-        rect_resized = resize_rect(rect, ratio)
-        frontiers_resized = resize_frontiers(frontiers, ratio)
-
-        image_size = costmap_resized.shape
-        pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
-
-        # get the mask size
-        if const.MASK_SIZE_FROM_FRONTIER:
-            mask_size = (int(rect_resized[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
-                         int(rect_resized[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
+        if abs(ratio - 1) > 1e-6:
+            costmap_resized = cv2.resize(self.costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+            gt_resized = cv2.resize(self.gt, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+            rect_resized = resize_rect(rect, ratio)
+            frontiers_resized = resize_frontiers(frontiers, ratio)
         else:
-            mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
-
-        costmap_pad = pad_costmap(costmap_resized, pad_image_size)
-        rect_pad = pad_rect(rect_resized, image_size, pad_image_size)
-        frontiers_pad = pad_frontiers(frontiers_resized, image_size, pad_image_size)
-        mask_pad = get_mask_image(rect_pad, mask_size, pad_image_size)
-        final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
-
-        # get the Area to be cropped as input
-        crop_rect = enlarge_rect(rect_pad, final_image_size)
-        # crop the final map
-        costmap_final = clip_image(costmap_pad, crop_rect)
-        mask_final = clip_image(mask_pad, crop_rect)
-        frontiers_final = clip_frontiers(frontiers_pad, crop_rect)
-
-        # normalize the images
-        input_image = np.dstack((costmap_final, mask_final)).astype(dtype=np.float32) / 255.0
-
-        # H * W * D -> D * H * W
-        input_image = input_image.transpose(2, 0, 1)
-
-        # return extra information as a dict of list of frontiers with only one element + order is (x, y, ...)
-        #  to be consistent with dataset with multiple frontiers in a single image
-        return input_image, \
-               {
-                   'Frontiers': [[(i[1], i[0], i[2]) for i in frontiers_final]],
-                   'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]]
-               }
-
-class OneDataInfo:
-    def __init__(self, json_path):
-        self.frontier_bounding_boxes = []
-        self.frontier_cluster_points = []
-        self.json_path = ""
-        self.load(json_path)
-
-    def load(self, json_path):
-        self.json_path = json_path
-        with open(self.json_path, 'r') as f:
-            info = json.load(f)
-            self.frontier_bounding_boxes, self.frontier_cluster_points = \
-                parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
-
-    def get_map_name(self):
-        json_files_split = self.json_path.split('/')
-        return json_files_split[-3]
-
-    def get_costmap_path(self):
-        regex = re.compile(r'.*info(\d+).json')
-        result = re.search(regex, self.json_path)
-        if result is None:
-            return ""
-        else:
-            index = result.group(1)
-            costmap_files = os.path.join(
-                '/'.join(self.json_path.split('/')[0:-1]),
-                'costmap' + str(index) + '.png'
-            )
-            return costmap_files
-
-    def get_bounding_box_img_path(self):
-        regex = re.compile(r'.*info(\d+).json')
-        regex_result = re.search(regex, self.json_path)
-        if regex_result is None:
-            return "", False
-        else:
-            index = regex_result.group(1)
-            costmap_files = os.path.join(
-                '/'.join(self.json_path.split('/')[0:-1]),
-                'boundingBox' + str(index) + '.png'
-            )
-            return costmap_files, True
-
-    def __len__(self):
-        return len(self.frontier_bounding_boxes)
-
-    def __getitem__(self, args):
-        item, gt_dict = args
-
-        costmap_path = self.get_costmap_path()
-        costmap = cv2.imread(costmap_path)
-        map_name = self.get_map_name()
-        gt = gt_dict[map_name]
-        rect = self.frontier_bounding_boxes[item]
-        frontiers = self.frontier_cluster_points[item]
-
-        ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
-        costmap_resized = cv2.resize(costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
-        gt_resized = cv2.resize(gt, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
-        rect_resized = resize_rect(rect, ratio)
-        frontiers_resized = resize_frontiers(frontiers, ratio)
+            costmap_resized = self.costmap
+            gt_resized = self.gt
+            rect_resized = rect
+            frontiers_resized = frontiers
 
         image_size = costmap_resized.shape
         pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
@@ -345,6 +304,144 @@ class OneDataInfo:
                    'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]]
                }
 
+class OneDataInfo:
+    def __init__(self, json_path):
+        self.frontier_bounding_boxes = []
+        self.frontier_cluster_points = []
+        self.json_path = ""
+        self._lens = 0
+        self.load(json_path)
+
+    def load(self, json_path):
+        self.json_path = json_path
+        with open(self.json_path, 'r') as f:
+            info = json.load(f)
+            if info["BoundingBoxes"] is None or info["Frontiers"] is None:
+                self._lens = 0
+            else:
+                self.frontier_bounding_boxes, self.frontier_cluster_points = \
+                    parse_bounding_boxes_and_frontiers(info["BoundingBoxes"], info["Frontiers"])
+                self._lens = len(self.frontier_bounding_boxes)
+
+    def get_map_iteration(self):
+        json_files_split = self.json_path.split('/')
+        return int(json_files_split[-2])
+
+    def get_map_name(self):
+        json_files_split = self.json_path.split('/')
+        return json_files_split[-3]
+
+    def get_plan_num(self):
+        regex = re.compile(r'.*info(\d+).json')
+        result = re.search(regex, self.json_path)
+        if result is None:
+            return 0
+        else:
+            plan_num = result.group(1)
+            return plan_num
+
+    def get_costmap_path(self):
+        regex = re.compile(r'.*info(\d+).json')
+        result = re.search(regex, self.json_path)
+        if result is None:
+            return ""
+        else:
+            index = result.group(1)
+            costmap_files = os.path.join(
+                '/'.join(self.json_path.split('/')[0:-1]),
+                'costmap' + str(index) + '.png'
+            )
+            return costmap_files
+
+    def get_bounding_box_img_path(self):
+        regex = re.compile(r'.*info(\d+).json')
+        regex_result = re.search(regex, self.json_path)
+        if regex_result is None:
+            return "", False
+        else:
+            index = regex_result.group(1)
+            costmap_files = os.path.join(
+                '/'.join(self.json_path.split('/')[0:-1]),
+                'boundingBox' + str(index) + '.png'
+            )
+            return costmap_files, True
+
+    def __len__(self):
+        return self._lens
+
+    def __getitem__(self, args):
+        item, gt_dict = args
+
+        costmap_path = self.get_costmap_path()
+        costmap = cv2.imread(costmap_path)
+        map_name = self.get_map_name()
+        gt = gt_dict[map_name]
+        rect = self.frontier_bounding_boxes[item]
+        frontiers = self.frontier_cluster_points[item]
+
+        # if costmap is None:
+        #     print(self.json_path)
+        #     costmap = np.zeros((const.ORIGINAL_HEIGHT, const.ORIGINAL_WIDTH, 3), dtype=np.uint8)
+
+        ratio = const.ORIGINAL_RESOLUTION / const.TARGET_RESOLUTION
+
+        if abs(ratio - 1) > 1e-6:
+            costmap_resized = cv2.resize(costmap, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+            gt_resized = cv2.resize(gt, (0, 0), fx=ratio, fy=ratio, interpolation=const.RESIZE_INTERPOLATION)
+            rect_resized = resize_rect(rect, ratio)
+            frontiers_resized = resize_frontiers(frontiers, ratio)
+        else:
+            costmap_resized = costmap
+            gt_resized = gt
+            rect_resized = rect
+            frontiers_resized = frontiers
+
+        image_size = costmap_resized.shape
+        pad_image_size = (image_size[0] + const.TARGET_HEIGHT, image_size[1] + const.TARGET_WIDTH)
+
+        # get the mask size
+        if const.MASK_SIZE_FROM_FRONTIER:
+            mask_size = (int(rect_resized[2] * const.FRONTIER_MASK_RESIZE_FACTOR),
+                         int(rect_resized[3] * const.FRONTIER_MASK_RESIZE_FACTOR))
+        else:
+            mask_size = [const.PREDICTION_HEIGHT, const.PREDICTION_WIDTH]
+
+        gt_pad = pad_image(gt_resized, pad_image_size)
+        costmap_pad = pad_costmap(costmap_resized, pad_image_size)
+        rect_pad = pad_rect(rect_resized, image_size, pad_image_size)
+        frontiers_pad = pad_frontiers(frontiers_resized, image_size, pad_image_size)
+        mask_pad = get_mask_image(rect_pad, mask_size, pad_image_size)
+        final_image_size = (const.TARGET_HEIGHT, const.TARGET_WIDTH)
+
+        # get the Area to be cropped as input
+        crop_rect = enlarge_rect(rect_pad, final_image_size)
+        # crop the final map
+        costmap_final = clip_image(costmap_pad, crop_rect)
+        gt_final = clip_image(gt_pad, crop_rect)
+        mask_final = clip_image(mask_pad, crop_rect)
+        frontiers_final = clip_frontiers(frontiers_pad, crop_rect)
+
+        # normalize the images
+        input_image = np.dstack((costmap_final, mask_final)).astype(dtype=np.float32) / 255.0
+        input_gt = gt_final.astype(dtype=np.float32) / 255.0
+        input_gt = np.expand_dims(input_gt, -1)
+
+        # H * W * D -> D * H * W
+        input_image = input_image.transpose(2, 0, 1)
+        input_gt = input_gt.transpose(2, 0, 1)
+
+        # return extra information as a dict of list of frontiers with only one element + order is (x, y, ...)
+        #  to be consistent with dataset with multiple frontiers in a single image
+        return input_image, input_gt, \
+               {
+                   'Frontiers': [[(i[1], i[0], i[2]) for i in frontiers_final]],
+                   'BoundingBoxes': [[crop_rect[1], crop_rect[0], crop_rect[3], crop_rect[2]]],
+                   'map_name': self.get_map_name(),
+                   'map_iteration': self.get_map_iteration(),
+                   'plan_num': self.get_plan_num(),
+                   'index': item
+               }
+
 
 if __name__ == "__main__":
     original_dataset_dir = "/home/bird/data/kth_floorplan_clean_categories"
@@ -355,12 +452,12 @@ if __name__ == "__main__":
     floorplan_dict = dict(zip(xml_names, floorplans))
 
     json_path = "/home/bird/data/floorplan_results_split/training/middle/50010539/1/info4.json"
-    info = OneDataInfo(json_path)
-    input, gt, frontiers = info.__getitem__(0, floorplan_dict)
+    one_data = OneDataInfo(json_path)
+    input, gt, info = one_data.__getitem__((0, floorplan_dict))
     input_image = input.transpose(1, 2, 0)
     input_image[:, :, 3] = input_image[:, :, 3] * 0.5 + 0.5
     input_image[:, :, 2].fill(0)
-    for frontier in frontiers:
+    for frontier in info["Frontiers"][0]:
         input_image[frontier[0], frontier[1], 2] = 1.0
 
     img_255 = (input_image * 255).astype(np.uint8)

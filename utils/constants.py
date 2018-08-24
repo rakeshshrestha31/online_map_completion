@@ -22,16 +22,16 @@ PREDICTION_WIDTH = 80
 PREDICTION_HEIGHT = 80
 
 # ignore very small frontier area (height or width < 5)
-FRONTIER_BOUNDING_BOX_MIN = 5
+FRONTIER_BOUNDING_BOX_MIN = 0
 
 # True: MASK SIZE is according to Frontier Area * FRONTIER_MASK_RESIZE_FACTOR
 # False: MASK_SIZE is fixed at PREDICTION_WIDTH * PREDICTION_HEIGHT
-MASK_SIZE_FROM_FRONTIER = True
+MASK_SIZE_FROM_FRONTIER = False
 
 MAX_USE_EXPLORE_AREA = False
 
 # Considering loss only in unknown part
-LOSS_USE_ONLY_UNKNOWN = True
+LOSS_USE_ONLY_UNKNOWN = False
 
 # Considering variable cost weight for obstacle and free space
 
@@ -45,7 +45,13 @@ valid value [-1, 0, 1],
 VARIABLE_COST_WEIGHT = 1
 
 
-OBSTACLE_THRESHOLD = 0.7
-FREE_THRESHOLD = 0.3
+OBSTACLE_THRESHOLD = 0.5
+FREE_THRESHOLD = 0.5
+
+
+# For data analysis
+SYS_TIME_BIN_INTERVAL = 100   # unit: ms
+SIM_TIME_BIN_INTERVAL = 1000  # unit: ms
+TRAJECTORY_BIN_INTERVAL = 10  # unit: m
 
 

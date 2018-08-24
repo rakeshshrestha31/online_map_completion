@@ -49,7 +49,7 @@ if __name__ == '__main__':
             large_num += 1
 
         if not os.path.exists(destdir):
-            os.mkdir(destdir)
+            os.makedirs(destdir)
 
         destfile = os.path.join(destdir, filename)
         if os.path.exists(destfile):
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
         # generate bitmap
         basename, ext = os.path.splitext(filename)
-        bitmap_name = os.path.join(destdir, basename+".bmp")
+        bitmap_name = os.path.join(destdir, basename+"_3.bmp")
         floorplan = FloorPlanGraph()
         floorplan.graph = g
         img = floorplan.to_image(0.1, (1360, 1020))

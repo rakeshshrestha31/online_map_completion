@@ -7,6 +7,7 @@ Implementation of pytorch util.data.dataset interface for partial map dataset"""
 import utils
 from kth.FloorPlanGraph import FloorPlanGraph
 import utils.constants
+from utils.generator_utils import collate_without_batching_dict
 
 # pytorch imports
 import torch
@@ -248,6 +249,25 @@ class PartialMapDataset(Dataset):
 
         return new_frontiers
 
+    def get_map_name(self, item):
+        info_path = self.dataset_meta_info[item]['info_file']
+        json_files_split = info_path.split('/')
+        return json_files_split[-3]
+
+    def get_map_iteration(self, item):
+        info_path = self.dataset_meta_info[item]['info_file']
+        json_files_split = info_path.split('/')
+        return int(json_files_split[-2])
+
+    def get_plan_num(self, item):
+        info_path = self.dataset_meta_info[item]['info_file']
+        regex = re.compile(r'.*info(\d+).json')
+        result = re.search(regex, info_path)
+        if result is None:
+            return 0
+        else:
+            plan_num = result.group(1)
+            return plan_num
 
     def __getitem__(self, item) -> (torch.FloatTensor, torch.FloatTensor, dict):
         """
@@ -360,6 +380,12 @@ class PartialMapDataset(Dataset):
             (utils.constants.TARGET_WIDTH, utils.constants.TARGET_HEIGHT), best_resolution,
             (original_costmap_size[1], original_costmap_size[0]), utils.constants.ORIGINAL_RESOLUTION
         )
+
+        info['map_name'] = self.get_map_name(item)
+        info['map_iteration'] = self.get_map_iteration(item)
+        info['plan_num'] = self.get_plan_num(item)
+        info['index'] = 0
+
         # todo convert to image coords for bounding boxes (if needed)
         return input_image, ground_truth_image, info
 
@@ -400,10 +426,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = PartialMapDataset(args.partial_dataset_dir, args.original_dataset_dir)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.is_shuffle, num_workers=1)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_without_batching_dict,
+                            shuffle=args.is_shuffle, num_workers=1)
 
     for batch_idx, batch_data in enumerate(dataloader):
-        input, target = batch_data
+        input, target, info = batch_data
         print('input', input.size())
         print('target', target.size())
 
