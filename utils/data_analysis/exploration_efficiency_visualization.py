@@ -78,7 +78,7 @@ def read_one_exploration(directory):
     file_indices = np.uint([re.search(regex, info_file).group(1) for info_file in info_files])
     max_index = np.max(file_indices)
     # TODO: remove
-    # max_index = min(5, max_index)
+    max_index = min(5, max_index)
 
     # if no info file or info file is not record continuously, pass
     if max_index < 0 or len(file_indices) < max_index:
@@ -305,8 +305,8 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     x_ticks, x_ticks_labels = extend_ticks(x_ticks, x_ticks_labels, maxes)
 
     plt.xticks(x_ticks, x_ticks_labels)
-
-    plt.show()
+    plt.savefig('/tmp/' + floorplan_name + '_' + data_type + '.png')
+    # plt.show()
 
 
 def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
@@ -363,7 +363,8 @@ if __name__ == "__main__":
         #     for run_idx in range(len(all_tests[test_idx].data[floorplan])):
         #         print('total time: {}'.format(all_tests[test_idx].data[floorplan][run_idx][-1]['SimulationTimes'][-1]))
 
-        visualize_floorplan(all_avg_floorplan_results, labels, floorplan, data_type=TRAJECTORY_LABEL)
+        for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]:
+            visualize_floorplan(all_avg_floorplan_results, labels, floorplan, data_type=x_label)
 
 
 
