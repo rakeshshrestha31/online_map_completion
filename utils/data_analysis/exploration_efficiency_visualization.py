@@ -15,6 +15,10 @@ TRAJECTORY_LABEL = "TrajectoryLens"
 SIM_TIME_LABEL = "SystemTimeCost"
 SYS_TIME_LABEL = "SimulationTimeCost"
 
+COLORS = [
+    'b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'
+]
+
 X_LABELS = [TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
 BIN_INTERVELS = [const.TRAJECTORY_BIN_INTERVAL, const.SIM_TIME_BIN_INTERVAL, const.SYS_TIME_BIN_INTERVAL]
 # Y_LABEL = AREA_LABEL
@@ -73,6 +77,8 @@ def read_one_exploration(directory):
     regex = re.compile(r'.*info(\d+).json')
     file_indices = np.uint([re.search(regex, info_file).group(1) for info_file in info_files])
     max_index = np.max(file_indices)
+    # TODO: remove
+    # max_index = min(5, max_index)
 
     # if no info file or info file is not record continuously, pass
     if max_index < 0 or len(file_indices) < max_index:
@@ -279,17 +285,46 @@ def visualize_average_floorplan(data_ig_gt, data_ig, data_no_ig, floorplan_name,
 def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
     plt.clf()
+    maxes = []
     for idx in range(len(avg_tests)):
         x_data = avg_tests[idx][floorplan_name][data_type]["x"]
         y_data = avg_tests[idx][floorplan_name][data_type]["y"]
-        plt.plot(x_data, y_data, label= test_labels[idx])
+        plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
+        plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
+        maxes.append(x_data[-1])
+        print('floorplan: {}, label: {}, max: {}'.format(floorplan_name, test_labels[idx], x_data[-1]))
 
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.legend(loc='lower right')
     plt.title("{}".format(floorplan_name))
+
+    # show the maxes too
+    x_ticks, x_ticks_labels = plt.xticks()
+    x_ticks, x_ticks_labels = extend_ticks(x_ticks, x_ticks_labels, maxes)
+
+    plt.xticks(x_ticks, x_ticks_labels)
+
     plt.show()
+
+
+def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
+    x_ticks = x_ticks.tolist()
+
+    indices_to_remove = []
+    half_tick_interval = (x_ticks[1] - x_ticks[0]) / 2.
+    for new_tick in new_ticks:
+        for tick_idx in range(len(x_ticks)):
+            if abs(x_ticks[tick_idx] - new_tick) < half_tick_interval:
+                indices_to_remove.append(tick_idx)
+
+    x_ticks = [x for i, x in enumerate(x_ticks) if i not in indices_to_remove]
+    x_ticks.extend(new_ticks)
+    x_ticks.sort()
+    x_ticks_labels = list(map(lambda x: ("%g" % x), x_ticks))
+
+    return x_ticks, x_ticks_labels
 
 
 if __name__ == "__main__":
@@ -323,7 +358,14 @@ if __name__ == "__main__":
         common_floorplan = common_floorplan & all_tests[i].data.keys()
 
     for floorplan in common_floorplan:
+        # for test_idx in range(len(all_tests)):
+        #     print('label: {}, floorplan: {})'.format(labels[test_idx], floorplan))
+        #     for run_idx in range(len(all_tests[test_idx].data[floorplan])):
+        #         print('total time: {}'.format(all_tests[test_idx].data[floorplan][run_idx][-1]['SimulationTimes'][-1]))
+
         visualize_floorplan(all_avg_floorplan_results, labels, floorplan, data_type=TRAJECTORY_LABEL)
+
+
 
 
     # dir_info_gain = args.results_dirs
