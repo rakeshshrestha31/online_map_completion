@@ -12,8 +12,8 @@ import utils.constants as const
 
 AREA_LABEL = "ExploredArea"
 TRAJECTORY_LABEL = "TrajectoryLens"
-SIM_TIME_LABEL = "SystemTimeCost"
-SYS_TIME_LABEL = "SimulationTimeCost"
+SIM_TIME_LABEL = "SimulationTimeCost"
+SYS_TIME_LABEL = "SystemTimeCost"
 
 COLORS = [
     'b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'
@@ -78,7 +78,7 @@ def read_one_exploration(directory):
     file_indices = np.uint([re.search(regex, info_file).group(1) for info_file in info_files])
     max_index = np.max(file_indices)
     # TODO: remove
-    max_index = min(5, max_index)
+    # max_index = min(10, max_index)
 
     # if no info file or info file is not record continuously, pass
     if max_index < 0 or len(file_indices) < max_index:
@@ -113,6 +113,10 @@ def aggregate_one_explore_data(one_explore_data):
     trajectory_lens = list(itertools.accumulate(step_lens))
     sim_time_cost = list(itertools.accumulate(step_sim_times))
     sys_time_cost = list(itertools.accumulate(step_sys_times))
+
+    # convert to secs
+    sim_time_cost = list(map(lambda x: float(x) / 1e3, sim_time_cost))
+    sys_time_cost = list(map(lambda x: float(x) / 1e3, sys_time_cost))
 
     aggregation = dict()
     aggregation[AREA_LABEL] = areas
@@ -246,13 +250,13 @@ def getXYLabel(type):
     x_label = ""
     y_label = ""
     if type == SIM_TIME_LABEL:
-        x_label = "Simulation time (ms)"
+        x_label = "Simulation time (s)"
         y_label = "Explored area ($\mathregular{m^2}$)"
     elif type == TRAJECTORY_LABEL:
         x_label = "Trajectory length (m)"
         y_label = "Explored area ($\mathregular{m^2}$)"
     elif type == SYS_TIME_LABEL:
-        x_label = "System time (ms)"
+        x_label = "System time (s)"
         y_label = "Explored area ($\mathregular{m^2}$)"
 
     return x_label, y_label
@@ -292,7 +296,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
-        print('floorplan: {}, label: {}, max: {}'.format(floorplan_name, test_labels[idx], x_data[-1]))
+        print('floorplan: {}, label: {}, type: {}, max: {}'.format(floorplan_name, test_labels[idx], data_type, x_data[-1]))
 
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
@@ -363,7 +367,7 @@ if __name__ == "__main__":
         #     for run_idx in range(len(all_tests[test_idx].data[floorplan])):
         #         print('total time: {}'.format(all_tests[test_idx].data[floorplan][run_idx][-1]['SimulationTimes'][-1]))
 
-        for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]:
+        for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL]:
             visualize_floorplan(all_avg_floorplan_results, labels, floorplan, data_type=x_label)
 
 
