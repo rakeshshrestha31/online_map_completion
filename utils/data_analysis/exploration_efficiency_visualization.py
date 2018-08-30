@@ -128,10 +128,14 @@ def aggregate_one_explore_data(one_explore_data):
 
 
 class InfoDataset:
-    def __init__(self, directory, repeat_times):
+    # static member to hold ground truth data (so that we don't parse it again and again)
+    ground_truth_data = {}
+
+    def __init__(self, directory, repeat_times, original_dataset_dir):
         self.data = dict()
         self.directory = directory
         self.repeat_times = repeat_times
+        self.original_dataset_dir = original_dataset_dir
         self.load(directory, repeat_times)
 
     def load(self, directory, repeat_times):
@@ -144,6 +148,19 @@ class InfoDataset:
                     self.data[floorplan_name].append(read_one_exploration(repeat_dir))
                 else:
                     self.data[floorplan_name].append(None)
+
+            # ground truth
+            if floorplan_name not in self.ground_truth_data:
+                xml_files = glob.glob(
+                    os.path.join(self.original_dataset_dir, '**', '{}.xml'.format(floorplan_name)), 
+                    recursive=True
+                )
+                if len(xml_files) != 1:
+                    print('[ERROR] ground truth files for floor plan {}: {}'.format(floorplan_name, ))
+                    self.ground_truth_data[floorplan_name] = None
+                else:
+                    self.ground_truth_data[floorplan_name] = FloorPlanGraph(file_path=xml_files[0])
+
 
     def aggregate_exploration_data(self):
         floorplan_names = self.data.keys()
@@ -333,6 +350,8 @@ def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluate Exploration Results')
+    parser.add_argument('original_dataset_dir', type=str, metavar='S',
+                        help='location of original dataset (xml files)')
     parser.add_argument('results_dirs', type=str, metavar='S', nargs="+",
                         help='result directories, each directory corresponding to an experiment')
     parser.add_argument('--result_labels', type=str, metavar='S', nargs="+",
@@ -351,7 +370,7 @@ if __name__ == "__main__":
     all_avg_floorplan_results = []
 
     for directory in directories:
-        one_test = InfoDataset(directory, repeat)
+        one_test = InfoDataset(directory, repeat, original_dataset_dir)
         all_tests.append(one_test)
         # all_explore_data.append(one_test.aggregate_exploration_data())
         all_avg_floorplan_results.append(one_test.average_floorplan_data())
