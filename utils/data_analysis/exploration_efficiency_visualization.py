@@ -143,21 +143,30 @@ class InfoDataset:
         self.repeat_times = repeat_times
         self.original_dataset_dir = original_dataset_dir
         self.ground_truth_data = {}
+        self.update_ground_truth_data()
         self.load(directory, repeat_times)
 
     def load(self, directory, repeat_times):
         for floorplan_name in os.listdir(directory):
-            self.data[floorplan_name] = []
+            self.data[floorplan_name] = {
+                'area': 100.0, 
+                'repeat_runs_data': []
+            }
+
+            if floorplan_name in self.ground_truth_data:
+                self.data[floorplan_name]['area'] = self.ground_truth_data[floorplan_name]['area']
+
             floorplan_dir = os.path.join(directory, floorplan_name)
             for num in range(repeat_times):
                 repeat_dir = os.path.join(floorplan_dir, str(num + 1))
                 if os.path.exists(repeat_dir):
-                    self.data[floorplan_name].append(read_one_exploration(repeat_dir))
+                    self.data[floorplan_name]['repeat_runs_data'].append(read_one_exploration(repeat_dir))
                 else:
                     print('[ERROR] directory not found {}'.format(repeat_dir))
-                    self.data[floorplan_name].append(None)
-
-            # ground truth
+                    self.data[floorplan_name]['repeat_runs_data'].append(None)
+    
+    def update_ground_truth_data(self):
+        for floorplan_name in os.listdir(directory):
             if floorplan_name not in self.ground_truth_data:
                 xml_files = glob.glob(
                     os.path.join(self.original_dataset_dir, '**', '{}.xml'.format(floorplan_name)), 
@@ -173,18 +182,17 @@ class InfoDataset:
                         'area': functools.reduce(lambda accumulator, x: x * accumulator, graph.get_real_size(), 1.0)
                     }
 
-
     def aggregate_exploration_data(self):
         floorplan_names = self.data.keys()
         exploration_data = dict()
         for floorplan_name in floorplan_names:
-            floorplan_data = self.data[floorplan_name]
+            floorplan_data = self.data[floorplan_name]['repeat_runs_data']
             exploration_data[floorplan_name] = []
             for t in range(self.repeat_times):
                 if floorplan_data[t] is None:
                     exploration_data[floorplan_name].append(None)
                 else:
-                    one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.ground_truth_data[floorplan_name]['area'])
+                    one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.data[floorplan_name]['area'])
                     exploration_data[floorplan_name].append(one_exploration_data)
         return exploration_data
 
@@ -407,11 +415,26 @@ if __name__ == "__main__":
         all_tests.append(one_test)
         # all_explore_data.append(one_test.aggregate_exploration_data())
         all_avg_floorplan_results.append(one_test.average_floorplan_data())
-
+    
     common_floorplan = all_tests[0].data.keys()
 
     for i in range(len(all_tests)):
         common_floorplan = common_floorplan & all_tests[i].data.keys()
+    
+    # save the data to avoid recomputations
+    all_data_dict = dict(zip(
+        labels, 
+        [{floorplan: i.data[floorplan] for floorplan in common_floorplan} for i in all_tests]
+    ))
+    all_avg_data_dict = dict(zip(
+        labels, 
+        [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
+    ))
+    with open('/tmp/all_data.json', 'w') as f:
+        json.dump(all_data_dict, f, indent=4)
+    with open('/tmp/all_avg_data.json', 'w') as f:
+        json.dump(all_avg_data_dict, f, indent=4)
+
 
     for floorplan in common_floorplan:
         # for test_idx in range(len(all_tests)):
@@ -420,7 +443,7 @@ if __name__ == "__main__":
         #         print('total time: {}'.format(all_tests[test_idx].data[floorplan][run_idx][-1]['SimulationTimes'][-1]))
 
         for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL]:
-            visualize_floorplan(all_avg_floorplan_results, labels, floorplan, data_type=x_label)
+            visualize_floorplan(list(all_avg_data_dict.values()), list(all_avg_data_dict.keys()), floorplan, data_type=x_label)
 
 
 
