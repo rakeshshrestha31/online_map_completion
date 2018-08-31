@@ -10,6 +10,8 @@ import argparse
 # custom import
 import utils.constants as const
 
+from kth.FloorPlanGraph import FloorPlanGraph
+
 AREA_LABEL = "ExploredArea"
 TRAJECTORY_LABEL = "TrajectoryLens"
 SIM_TIME_LABEL = "SimulationTimeCost"
@@ -67,7 +69,7 @@ def parse_info(info):
 def read_one_plan(json_path):
     with open(json_path, 'r') as f:
         info = json.load(f)
-        info = parse_info(info)
+        # info = parse_info(info)
         return info
 
 
@@ -99,20 +101,30 @@ def aggregate_one_explore_data(one_explore_data):
     step_lens = []
     step_sys_times = []
     step_sim_times = []
+    
+    # step data 
+    flatten = lambda l: [item for sublist in l for item in sublist]
+    aggregate_x_data = {}
+    x_axes_labels = ["RobotPoses", "SystemTimes", "SimulationTimes"]
+    for x_label in x_axes_labels:
+        aggregate_x_data[x_label] = flatten([one_explore_data[i][x_label] for i in range(len(one_explore_data))])
+    
+    step_data = parse_info(aggregate_x_data)
 
     for idx in range(len(one_explore_data)):
-        if not one_explore_data[idx]["ExploredArea"] or not one_explore_data[idx]["StepSystemTime"] \
-                or not one_explore_data[idx]["StepSimulationTime"] or not one_explore_data[idx]["ExploredArea"]:
+        if not one_explore_data[idx]["ExploredArea"] or not one_explore_data[idx]["RobotPoses"] \
+                or not one_explore_data[idx]["SimulationTimes"] or not one_explore_data[idx]["SystemTimes"]:
             continue
         else:
-            areas.extend(one_explore_data[idx]["ExploredArea"])
-            step_lens.extend(one_explore_data[idx]["StepLens"])
-            step_sim_times.extend(one_explore_data[idx]["StepSimulationTime"])
-            step_sys_times.extend(one_explore_data[idx]["StepSystemTime"])
 
-    trajectory_lens = list(itertools.accumulate(step_lens))
-    sim_time_cost = list(itertools.accumulate(step_sim_times))
-    sys_time_cost = list(itertools.accumulate(step_sys_times))
+            areas.extend(one_explore_data[idx]["ExploredArea"])
+            # step_lens.extend(one_explore_data[idx]["StepLens"])
+            # step_sim_times.extend(one_explore_data[idx]["StepSimulationTime"])
+            # step_sys_times.extend(one_explore_data[idx]["StepSystemTime"])
+
+    trajectory_lens = list(itertools.accumulate(step_data["StepLens"]))
+    sim_time_cost = list(itertools.accumulate(step_data["StepSimulationTime"]))
+    sys_time_cost = list(itertools.accumulate(step_data["StepSystemTime"]))
 
     # convert to secs
     sim_time_cost = list(map(lambda x: float(x) / 1e3, sim_time_cost))
@@ -147,6 +159,7 @@ class InfoDataset:
                 if os.path.exists(repeat_dir):
                     self.data[floorplan_name].append(read_one_exploration(repeat_dir))
                 else:
+                    print('[ERROR] directory not found {}'.format(repeat_dir))
                     self.data[floorplan_name].append(None)
 
             # ground truth
@@ -156,7 +169,7 @@ class InfoDataset:
                     recursive=True
                 )
                 if len(xml_files) != 1:
-                    print('[ERROR] ground truth files for floor plan {}: {}'.format(floorplan_name, ))
+                    print('[ERROR] ground truth files for floor plan {}: {}'.format(floorplan_name, xml_files))
                     self.ground_truth_data[floorplan_name] = None
                 else:
                     self.ground_truth_data[floorplan_name] = FloorPlanGraph(file_path=xml_files[0])
@@ -190,6 +203,7 @@ class InfoDataset:
                 for one_exploration_data in one_floorplan_data:
                     if one_exploration_data is not None:
                         aggregate_floorplan[type].extend(one_exploration_data[type])
+                        print('one {}: {}'.format(type, one_exploration_data[type]))
 
             x_types = X_LABELS
             x_intervals = BIN_INTERVELS
@@ -199,10 +213,12 @@ class InfoDataset:
             for idx in range(len(x_types)):
                 if not aggregate_floorplan[x_types[idx]]:
                     average_floorplan[x_types[idx]] = None
+                    print('[ERROR] {} exploration data does not exist'.format(x_types[idx]))
                     continue
 
                 floorplan_data_numpy = np.asarray(aggregate_floorplan[x_types[idx]])
                 max_x = floorplan_data_numpy.max()
+                print('max {}, {}'.format(x_types[idx], floorplan_data_numpy))
                 # split x data from 0 to max_x + x_interval into bins with x_interval
                 bins = np.arange(0, max_x + x_intervals[idx], x_intervals[idx])
                 # x is in the center of each bin
@@ -361,6 +377,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    original_dataset_dir = args.original_dataset_dir
     directories = args.results_dirs
     labels = args.result_labels
     repeat = args.repeat_times
