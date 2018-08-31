@@ -4,6 +4,7 @@ import re
 import numpy as np
 import json
 import itertools
+import functools
 import matplotlib.pyplot as plt
 import argparse
 
@@ -12,6 +13,7 @@ import utils.constants as const
 
 from kth.FloorPlanGraph import FloorPlanGraph
 
+PERCENT_AREA_LABEL = "PercentExploredArea"
 AREA_LABEL = "ExploredArea"
 TRAJECTORY_LABEL = "TrajectoryLens"
 SIM_TIME_LABEL = "SimulationTimeCost"
@@ -25,7 +27,7 @@ X_LABELS = [TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
 BIN_INTERVELS = [const.TRAJECTORY_BIN_INTERVAL, const.SIM_TIME_BIN_INTERVAL, const.SYS_TIME_BIN_INTERVAL]
 # Y_LABEL = AREA_LABEL
 
-ALL_LABELS = [AREA_LABEL, TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
+ALL_LABELS = [PERCENT_AREA_LABEL, AREA_LABEL, TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
 
 
 def poses_to_step_length(poses):
@@ -96,7 +98,7 @@ def read_one_exploration(directory):
     return one_exploration_data
 
 
-def aggregate_one_explore_data(one_explore_data):
+def aggregate_one_explore_data(one_explore_data, total_area=100.0):
     areas = []
     step_lens = []
     step_sys_times = []
@@ -123,6 +125,7 @@ def aggregate_one_explore_data(one_explore_data):
 
     aggregation = dict()
     aggregation[AREA_LABEL] = areas
+    aggregation[PERCENT_AREA_LABEL] = [i / total_area * 100 for i in areas]
     aggregation[TRAJECTORY_LABEL] = trajectory_lens
     aggregation[SIM_TIME_LABEL] = sim_time_cost
     aggregation[SYS_TIME_LABEL] = sys_time_cost
@@ -139,6 +142,7 @@ class InfoDataset:
         self.directory = directory
         self.repeat_times = repeat_times
         self.original_dataset_dir = original_dataset_dir
+        self.ground_truth_data = {}
         self.load(directory, repeat_times)
 
     def load(self, directory, repeat_times):
@@ -163,7 +167,11 @@ class InfoDataset:
                     print('[ERROR] ground truth files for floor plan {}: {}'.format(floorplan_name, xml_files))
                     self.ground_truth_data[floorplan_name] = None
                 else:
-                    self.ground_truth_data[floorplan_name] = FloorPlanGraph(file_path=xml_files[0])
+                    graph = FloorPlanGraph(file_path=xml_files[0])
+                    self.ground_truth_data[floorplan_name] = {
+                        'graph': graph,
+                        'area': functools.reduce(lambda accumulator, x: x * accumulator, graph.get_real_size(), 1.0)
+                    }
 
 
     def aggregate_exploration_data(self):
@@ -176,7 +184,7 @@ class InfoDataset:
                 if floorplan_data[t] is None:
                     exploration_data[floorplan_name].append(None)
                 else:
-                    one_exploration_data = aggregate_one_explore_data(floorplan_data[t])
+                    one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.ground_truth_data[floorplan_name]['area'])
                     exploration_data[floorplan_name].append(one_exploration_data)
         return exploration_data
 
@@ -199,7 +207,8 @@ class InfoDataset:
             x_intervals = BIN_INTERVELS
 
             average_floorplan = dict()
-            y_data_numpy = np.asarray(aggregate_floorplan[AREA_LABEL])
+            # y_data_numpy = np.asarray(aggregate_floorplan[AREA_LABEL])
+            y_data_numpy = np.asarray(aggregate_floorplan[PERCENT_AREA_LABEL])
             for idx in range(len(x_types)):
                 if not aggregate_floorplan[x_types[idx]]:
                     average_floorplan[x_types[idx]] = None
@@ -279,16 +288,15 @@ class InfoDataset:
 
 def getXYLabel(type):
     x_label = ""
-    y_label = ""
+    # y_label = "Explored area ($\mathregular{m^2}$)"
+    y_label = "Area coverage (%age)"
+
     if type == SIM_TIME_LABEL:
         x_label = "Simulation time (s)"
-        y_label = "Explored area ($\mathregular{m^2}$)"
     elif type == TRAJECTORY_LABEL:
         x_label = "Trajectory length (m)"
-        y_label = "Explored area ($\mathregular{m^2}$)"
     elif type == SYS_TIME_LABEL:
         x_label = "System time (s)"
-        y_label = "Explored area ($\mathregular{m^2}$)"
 
     return x_label, y_label
 
