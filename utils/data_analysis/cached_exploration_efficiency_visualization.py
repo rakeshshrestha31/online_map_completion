@@ -14,6 +14,12 @@ if __name__ == '__main__':
     common_floorplan = list(next(iter(all_avg_data_dict.values())).keys())
     
     for floorplan in common_floorplan:
-        for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL]:
-            visualize_floorplan(list(all_avg_data_dict.values()), list(all_avg_data_dict.keys()), floorplan, data_type=x_label)
+        for x_label in [SIM_TIME_LABEL]:
+            label_data_tuples = sorted(list(all_avg_data_dict.items()))
+            visualize_floorplan(
+                [i[1] for i in label_data_tuples], 
+                [i[0] for i in label_data_tuples], 
+                floorplan, 
+                data_type=x_label
+            )
     
