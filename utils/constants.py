@@ -52,6 +52,6 @@ FREE_THRESHOLD = 0.5
 # For data analysis
 SYS_TIME_BIN_INTERVAL = 1   # unit: s
 SIM_TIME_BIN_INTERVAL = 1  # unit: s
-TRAJECTORY_BIN_INTERVAL = 4  # unit: m
+TRAJECTORY_BIN_INTERVAL = 25  # unit: m
 
 

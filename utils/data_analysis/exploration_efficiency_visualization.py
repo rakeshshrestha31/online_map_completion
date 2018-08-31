@@ -233,7 +233,9 @@ class InfoDataset:
                 digitized = np.digitize(floorplan_data_numpy, bins)
 
                 # get y bins data from average
-                y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
+                # y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
+                y_data_bins = [y_data_numpy[digitized == i].median() for i in range(1, len(bins))]
+
                 y_data_bins_std = [y_data_numpy[digitized == i].std() for i in range(1, len(bins))]
                 y_q1 = [np.percentile(y_data_numpy[digitized == i], 25) for i in range(1, len(bins))]
                 y_q3 = [np.percentile(y_data_numpy[digitized == i], 75) for i in range(1, len(bins))]
@@ -344,12 +346,12 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         y_q1 = avg_tests[idx][floorplan_name][data_type]["y_q1"]
         y_q3 = avg_tests[idx][floorplan_name][data_type]["y_q3"]
         
-        print('dispersion:', y_std, y_q1, y_q3)
+        # print('dispersion:', y_std, y_q1, y_q3)
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
         
         alpha = 0.5
-        # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha)
-        plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha)
+        # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
+        plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha, color=COLORS[idx])
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
