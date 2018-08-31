@@ -194,7 +194,6 @@ class InfoDataset:
                 for one_exploration_data in one_floorplan_data:
                     if one_exploration_data is not None:
                         aggregate_floorplan[type].extend(one_exploration_data[type])
-                        print('one {}: {}'.format(type, one_exploration_data[type]))
 
             x_types = X_LABELS
             x_intervals = BIN_INTERVELS
@@ -209,7 +208,6 @@ class InfoDataset:
 
                 floorplan_data_numpy = np.asarray(aggregate_floorplan[x_types[idx]])
                 max_x = floorplan_data_numpy.max()
-                print('max {}, {}'.format(x_types[idx], floorplan_data_numpy))
                 # split x data from 0 to max_x + x_interval into bins with x_interval
                 bins = np.arange(0, max_x + x_intervals[idx], x_intervals[idx])
                 # x is in the center of each bin
@@ -219,9 +217,18 @@ class InfoDataset:
 
                 # get y bins data from average
                 y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
+                y_data_bins_std = [y_data_numpy[digitized == i].std() for i in range(1, len(bins))]
+                y_q1 = [np.percentile(y_data_numpy[digitized == i], 25) for i in range(1, len(bins))]
+                y_q3 = [np.percentile(y_data_numpy[digitized == i], 75) for i in range(1, len(bins))]
 
                 # store x_bins and y_data_bins
-                average_floorplan[x_types[idx]] = {"x": x, "y": y_data_bins}
+                average_floorplan[x_types[idx]] = {
+                    "x": x, 
+                    "y": y_data_bins, 
+                    "y_std": y_data_bins_std,
+                    "y_q1": y_q1,
+                    "y_q3": y_q3
+                }
 
             # store into average_data with floorplan_name as key
             average_data[floorplan_name] = average_floorplan
@@ -317,7 +324,17 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     for idx in range(len(avg_tests)):
         x_data = avg_tests[idx][floorplan_name][data_type]["x"]
         y_data = avg_tests[idx][floorplan_name][data_type]["y"]
+        y_std = avg_tests[idx][floorplan_name][data_type]["y_std"]
+        y_q1 = avg_tests[idx][floorplan_name][data_type]["y_q1"]
+        y_q3 = avg_tests[idx][floorplan_name][data_type]["y_q3"]
+        
+        print('dispersion:', y_std, y_q1, y_q3)
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
+        
+        alpha = 0.5
+        # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha)
+        plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha)
+
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
         print('floorplan: {}, label: {}, type: {}, max: {}'.format(floorplan_name, test_labels[idx], data_type, x_data[-1]))
