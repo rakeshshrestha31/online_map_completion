@@ -7,11 +7,10 @@ import itertools
 import functools
 import matplotlib.pyplot as plt
 import argparse
+from collections import OrderedDict
 
 # custom import
 import utils.constants as const
-
-from kth.FloorPlanGraph import FloorPlanGraph
 
 PERCENT_AREA_LABEL = "PercentExploredArea"
 AREA_LABEL = "ExploredArea"
@@ -166,6 +165,7 @@ class InfoDataset:
                     self.data[floorplan_name]['repeat_runs_data'].append(None)
     
     def update_ground_truth_data(self):
+        from kth.FloorPlanGraph import FloorPlanGraph
         for floorplan_name in os.listdir(directory):
             if floorplan_name not in self.ground_truth_data:
                 xml_files = glob.glob(
@@ -338,8 +338,8 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     plt.clf()
     maxes = []
     for idx in range(len(avg_tests)):
-        x_data = avg_tests[idx][floorplan_name][data_type]["x"]
-        y_data = avg_tests[idx][floorplan_name][data_type]["y"]
+        x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
+        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])
         y_std = avg_tests[idx][floorplan_name][data_type]["y_std"]
         y_q1 = avg_tests[idx][floorplan_name][data_type]["y_q1"]
         y_q3 = avg_tests[idx][floorplan_name][data_type]["y_q3"]
@@ -353,7 +353,19 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
-        print('floorplan: {}, label: {}, type: {}, max: {}'.format(floorplan_name, test_labels[idx], data_type, x_data[-1]))
+
+        output_json = OrderedDict([
+            ('floorplan', floorplan_name),
+            ('label', test_labels[idx]), 
+            ('type', data_type), 
+            ('max_x', x_data[-1]), 
+            ('max_y', y_data[-1]), 
+            ('80%', evaluate_percent_coverage(x_data, y_data, 80)), 
+            ('90%', evaluate_percent_coverage(x_data, y_data, 90)),
+            ('95%', evaluate_percent_coverage(x_data, y_data, 95)), 
+            ('99%', evaluate_percent_coverage(x_data, y_data, 99))
+        ])
+        print(json.dumps(output_json, indent=4))
 
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
@@ -386,6 +398,21 @@ def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
     x_ticks_labels = list(map(lambda x: ("%g" % x), x_ticks))
 
     return x_ticks, x_ticks_labels
+
+
+def evaluate_percent_coverage(x, y, percent):
+    """
+    @param x x-labels
+    @param y y-lables (should be in percentage (<100)
+    @param percent
+    @return x value that achieves given percentage of y
+    """
+    if percent > max(y):
+        # idx = -1
+        return -1
+    else:
+        idx = np.argmax(y > percent)
+    return x[idx]
 
 
 if __name__ == "__main__":
