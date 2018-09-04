@@ -7,11 +7,10 @@ import itertools
 import functools
 import matplotlib.pyplot as plt
 import argparse
+from collections import OrderedDict
 
 # custom import
 import utils.constants as const
-
-from kth.FloorPlanGraph import FloorPlanGraph
 
 PERCENT_AREA_LABEL = "PercentExploredArea"
 AREA_LABEL = "ExploredArea"
@@ -166,6 +165,7 @@ class InfoDataset:
                     self.data[floorplan_name]['repeat_runs_data'].append(None)
     
     def update_ground_truth_data(self):
+        from kth.FloorPlanGraph import FloorPlanGraph
         for floorplan_name in os.listdir(directory):
             if floorplan_name not in self.ground_truth_data:
                 xml_files = glob.glob(
@@ -340,8 +340,8 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     plt.clf()
     maxes = []
     for idx in range(len(avg_tests)):
-        x_data = avg_tests[idx][floorplan_name][data_type]["x"]
-        y_data = avg_tests[idx][floorplan_name][data_type]["y"]
+        x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
+        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])
         y_std = avg_tests[idx][floorplan_name][data_type]["y_std"]
         y_q1 = avg_tests[idx][floorplan_name][data_type]["y_q1"]
         y_q3 = avg_tests[idx][floorplan_name][data_type]["y_q3"]
@@ -355,7 +355,19 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
-        print('floorplan: {}, label: {}, type: {}, max: {}'.format(floorplan_name, test_labels[idx], data_type, x_data[-1]))
+
+        output_json = OrderedDict([
+            ('floorplan', floorplan_name),
+            ('label', test_labels[idx]), 
+            ('type', data_type), 
+            ('max_x', x_data[-1]), 
+            ('max_y', y_data[-1]), 
+            ('80%', evaluate_percent_coverage(x_data, y_data, 80)), 
+            ('90%', evaluate_percent_coverage(x_data, y_data, 90)),
+            ('95%', evaluate_percent_coverage(x_data, y_data, 95)), 
+            ('99%', evaluate_percent_coverage(x_data, y_data, 99))
+        ])
+        print(json.dumps(output_json, indent=4))
 
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
@@ -368,26 +380,41 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     x_ticks, x_ticks_labels = extend_ticks(x_ticks, x_ticks_labels, maxes)
 
     plt.xticks(x_ticks, x_ticks_labels)
-    plt.savefig('/tmp/' + floorplan_name + '_' + data_type + '.png')
+    plt.savefig('/tmp/{}_{}_{}.png'.format(floorplan_name, data_type, "_".join(test_labels)))
     # plt.show()
 
 
 def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
     x_ticks = x_ticks.tolist()
 
-    indices_to_remove = []
-    half_tick_interval = (x_ticks[1] - x_ticks[0]) / 2.
-    for new_tick in new_ticks:
-        for tick_idx in range(len(x_ticks)):
-            if abs(x_ticks[tick_idx] - new_tick) < half_tick_interval:
-                indices_to_remove.append(tick_idx)
+    # indices_to_remove = []
+    # half_tick_interval = (x_ticks[1] - x_ticks[0]) / 2.
+    # for new_tick in new_ticks:
+    #     for tick_idx in range(len(x_ticks)):
+    #         if abs(x_ticks[tick_idx] - new_tick) < half_tick_interval:
+    #             indices_to_remove.append(tick_idx)
 
-    x_ticks = [x for i, x in enumerate(x_ticks) if i not in indices_to_remove]
-    x_ticks.extend(new_ticks)
-    x_ticks.sort()
+    # x_ticks = [x for i, x in enumerate(x_ticks) if i not in indices_to_remove]
+    # x_ticks.extend(new_ticks)
+    # x_ticks.sort()
     x_ticks_labels = list(map(lambda x: ("%g" % x), x_ticks))
 
     return x_ticks, x_ticks_labels
+
+
+def evaluate_percent_coverage(x, y, percent):
+    """
+    @param x x-labels
+    @param y y-lables (should be in percentage (<100)
+    @param percent
+    @return x value that achieves given percentage of y
+    """
+    if percent > max(y):
+        # idx = -1
+        return -1
+    else:
+        idx = np.argmax(y > percent)
+    return x[idx]
 
 
 if __name__ == "__main__":
@@ -445,10 +472,13 @@ if __name__ == "__main__":
         #         print('total time: {}'.format(all_tests[test_idx].data[floorplan][run_idx][-1]['SimulationTimes'][-1]))
 
         for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL]:
-            visualize_floorplan(list(all_avg_data_dict.values()), list(all_avg_data_dict.keys()), floorplan, data_type=x_label)
-
-
-
+            label_data_tuples = sorted(list(all_avg_data_dict.items()))
+            visualize_floorplan(
+                [i[1] for i in label_data_tuples], 
+                [i[0] for i in label_data_tuples], 
+                floorplan, 
+                data_type=x_label
+            )
 
     # dir_info_gain = args.results_dirs
     # dir_info_gain_gt = args.info_gain_gt_results_dir
