@@ -216,7 +216,6 @@ if __name__ == '__main__':
             # expected_info_gain = compute_expected_information_gain(input, recon_batch, info, 'expected')
             # ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info, 'ground_truth')
 
-
             all_information_gain.extend(batch_information_gain)
             all_information_gain_GT.extend(batch_information_gain_gt)
             # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
