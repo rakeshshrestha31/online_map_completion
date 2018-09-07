@@ -194,7 +194,12 @@ class InfoDataset:
                 digitized = np.digitize(floorplan_data_numpy, bins)
 
                 # get y bins data from average
+                # y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
                 y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
+
+                y_data_bins_std = [y_data_numpy[digitized == i].std() for i in range(1, len(bins))]
+                y_q1 = [np.percentile(y_data_numpy[digitized == i], 25) for i in range(1, len(bins))]
+                y_q3 = [np.percentile(y_data_numpy[digitized == i], 75) for i in range(1, len(bins))]
 
                 # store x_bins and y_data_bins
                 average_floorplan[x_types[idx]] = {"x": x, "y": y_data_bins}
