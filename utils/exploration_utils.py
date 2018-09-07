@@ -64,12 +64,18 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
 
     # TODO: don't do this for ground truth prediction
     # hide the unknown parts not in the mask
-    mask = (1 - input[:, -1:].byte()) * input[:, 0:1].gt(0.1)
+    mask = (1 - input[:, -1:].byte()) # * input[:, 0:1].gt(0.1)
     mask = (1 - mask).float()
     prediction *= mask
 
     multi_channel_prediction = utils.vis_utils.get_padded_occupancy_grid(prediction)
     multi_channel_prediction[:, 3, :, :] = input[:, 3, :, :]
+
+    # output of the mask should be zero to be added
+    multi_channel_prediction[:, :3, :, :] *= mask.expand(-1, 3, -1, -1)
+    unpredicted_input = input[:, :, :, :] * (1 - mask).expand(-1, 4, -1, -1)
+    unpredicted_input[:, -1, :, :] = 1
+    multi_channel_prediction[:, :3, :, :] += unpredicted_input[:, :3, :, :]
 
     viz_data = [
 
@@ -80,6 +86,8 @@ def compute_expected_information_gain(input: Variable, prediction: Variable,
         ),
 
         # utils.vis_utils.get_padded_occupancy_grid(mask),
+        #
+        # unpredicted_input,
 
         # utils.vis_utils.get_transparancy_adjusted_input(annotated_input),
 
