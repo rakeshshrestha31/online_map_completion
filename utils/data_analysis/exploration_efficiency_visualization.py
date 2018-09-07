@@ -179,7 +179,8 @@ class InfoDataset:
                     graph = FloorPlanGraph(file_path=xml_files[0])
                     self.ground_truth_data[floorplan_name] = {
                         'graph': graph,
-                        'area': functools.reduce(lambda accumulator, x: x * accumulator, graph.get_real_size(), 1.0)
+                        'area': functools.reduce(lambda accumulator, x: x * accumulator, graph.get_real_size(), 1.0),
+                        'dim': graph.get_real_size()
                     }
 
     def aggregate_exploration_data(self):
@@ -339,6 +340,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
     plt.clf()
     maxes = []
+    max_coverage = float('-inf')
     for idx in range(len(avg_tests)):
         x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
         y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])
@@ -349,12 +351,19 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         # print('dispersion:', y_std, y_q1, y_q3)
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
         
-        alpha = 0.5
+        alpha = 0.25 # 0.5
         # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
         plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha, color=COLORS[idx])
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
+        max_coverage = max(max_coverage, y_data[-1])
+
+    outputs = [] 
+    for idx in range(len(avg_tests)):
+        x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
+        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])
+        y_data = y_data / max_coverage * 100.0
 
         output_json = OrderedDict([
             ('floorplan', floorplan_name),
@@ -362,12 +371,13 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
             ('type', data_type), 
             ('max_x', x_data[-1]), 
             ('max_y', y_data[-1]), 
-            ('80%', evaluate_percent_coverage(x_data, y_data, 80)), 
+            # ('80%', evaluate_percent_coverage(x_data, y_data, 80)), 
             ('90%', evaluate_percent_coverage(x_data, y_data, 90)),
-            ('95%', evaluate_percent_coverage(x_data, y_data, 95)), 
-            ('99%', evaluate_percent_coverage(x_data, y_data, 99))
+            # ('95%', evaluate_percent_coverage(x_data, y_data, 95)), 
+            # ('99%', evaluate_percent_coverage(x_data, y_data, 99))
         ])
-        print(json.dumps(output_json, indent=4))
+        # print(json.dumps(output_json, indent=4))
+        outputs.append(output_json)
 
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
@@ -382,6 +392,8 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     plt.xticks(x_ticks, x_ticks_labels)
     plt.savefig('/tmp/{}_{}_{}.png'.format(floorplan_name, data_type, "_".join(test_labels)))
     # plt.show()
+
+    return outputs
 
 
 def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
@@ -416,6 +428,12 @@ def evaluate_percent_coverage(x, y, percent):
         idx = np.argmax(y > percent)
     return x[idx]
 
+def compare_outputs(output1, output2):
+    "compares the dictionary outputs for sorting"
+    if output1['floorplan'] != output2['floorplan']:
+        return output1['floorplan'] < output2['floorplan']
+    else:
+        return output1['label'] < output2['label']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluate Exploration Results')
@@ -464,7 +482,7 @@ if __name__ == "__main__":
     with open('/tmp/all_avg_data.json', 'w') as f:
         json.dump(all_avg_data_dict, f, indent=4)
 
-
+    outputs = []
     for floorplan in common_floorplan:
         # for test_idx in range(len(all_tests)):
         #     print('label: {}, floorplan: {})'.format(labels[test_idx], floorplan))
@@ -473,13 +491,16 @@ if __name__ == "__main__":
 
         for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL]:
             label_data_tuples = sorted(list(all_avg_data_dict.items()))
-            visualize_floorplan(
+            outputs.extend(visualize_floorplan(
                 [i[1] for i in label_data_tuples], 
                 [i[0] for i in label_data_tuples], 
                 floorplan, 
                 data_type=x_label
-            )
-
+            ))
+    
+    sorted(outputs, key=functools.cmp_to_key(compare_outputs))
+    print(json.dumps(outputs), indent=4)
+    
     # dir_info_gain = args.results_dirs
     # dir_info_gain_gt = args.info_gain_gt_results_dir
     # dir_no_info_gain = args.no_info_gain_results_dir

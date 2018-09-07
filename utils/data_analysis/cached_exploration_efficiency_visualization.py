@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import functools
 
-from exploration_efficiency_visualization import visualize_floorplan, TRAJECTORY_LABEL, SIM_TIME_LABEL
+from exploration_efficiency_visualization import visualize_floorplan, compare_outputs, TRAJECTORY_LABEL, SIM_TIME_LABEL
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate Cached Exploration Results')
@@ -13,13 +14,16 @@ if __name__ == '__main__':
         all_avg_data_dict = json.load(f)
     common_floorplan = list(next(iter(all_avg_data_dict.values())).keys())
     
+    outputs = []
     for floorplan in common_floorplan:
         for x_label in [SIM_TIME_LABEL]:
             label_data_tuples = sorted(list(all_avg_data_dict.items()))
-            visualize_floorplan(
+            outputs.extend(visualize_floorplan(
                 [i[1] for i in label_data_tuples], 
                 [i[0] for i in label_data_tuples], 
                 floorplan, 
                 data_type=x_label
-            )
+            ))
+    outputs = sorted(outputs, key=functools.cmp_to_key(compare_outputs))
+    print(json.dumps(outputs, indent=4))
     
