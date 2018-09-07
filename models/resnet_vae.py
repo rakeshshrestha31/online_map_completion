@@ -24,12 +24,12 @@ class ResnetVAE(nn.Module):
                  latent_encoding_channels: int, skip_connection_type: str = 'concat'):
         super(ResnetVAE, self).__init__()
         skip_connections = {
-            # 'layer4': 'layer4',
-            # 'layer3': 'layer3',
-            # 'layer2': 'layer2',
-            # 'layer1': 'layer1',
-            # 'output_upsample2': 'maxpool',
-            # 'deconv1': 'conv1',
+            'layer4': 'layer4',
+            'layer3': 'layer3',
+            'layer2': 'layer2',
+            'layer1': 'layer1',
+            'output_upsample2': 'maxpool',
+            'deconv1': 'conv1',
             # 'deconv2': 'input'
         }
 

@@ -203,6 +203,7 @@ if __name__ == '__main__':
             batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
             batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
+<<<<<<< Updated upstream
             expected_info_gain, _ = compute_expected_information_gain(
                 input, recon_batch, info, os.path.join(eval_result_dir, 'expected' + str(batch_idx) + '.png')
             )
@@ -212,6 +213,11 @@ if __name__ == '__main__':
 
             batch_information_gain = [int(i['information_gain']) for i in expected_info_gain]
             batch_information_gain_gt = [int(i['information_gain']) for i in ground_truth_info_gain]
+=======
+
+            expected_info_gain = compute_expected_information_gain(input, recon_batch, info, 'expected')
+            ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info, 'ground_truth')
+>>>>>>> Stashed changes
 
             all_information_gain.extend(batch_information_gain)
             all_information_gain_GT.extend(batch_information_gain_gt)
