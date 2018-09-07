@@ -353,7 +353,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         
         alpha = 0.25 # 0.5
         # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
-        plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha, color=COLORS[idx])
+        # plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha, color=COLORS[idx])
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
@@ -382,7 +382,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.legend(loc='lower right')
+    # plt.legend(loc='lower right')
     plt.title("{}".format(floorplan_name))
 
     # show the maxes too
@@ -391,6 +391,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
     plt.xticks(x_ticks, x_ticks_labels)
     plt.savefig('/tmp/{}_{}_{}.png'.format(floorplan_name, data_type, "_".join(test_labels)))
+    plt.savefig('/tmp/{}_{}_{}.eps'.format(floorplan_name, data_type, "_".join(test_labels)))
     # plt.show()
 
     return outputs
