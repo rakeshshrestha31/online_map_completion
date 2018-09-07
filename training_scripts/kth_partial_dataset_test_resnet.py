@@ -132,14 +132,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    model = ResnetVAE('resnet' + str(args.resnet_version), latent_encoding_channels=args.latent_size, skip_connection_type='concat')
-    # model = ResnetVAE(
-    #     {
-    #         'block_lengths': [1, 1, 1, 1],
-    #         'block': 'BasicBlock'
-    #     },
-    #     latent_encoding_channels=args.latent_size, skip_connection_type='concat'
-    # )
+    result_dir = os.path.split(os.path.split(args.checkpoint)[0])[0]  # grandparents' directory
+
+    eval_result_dir = os.path.join(result_dir, 'eval_results')
+    if not os.path.exists(eval_result_dir):
+        os.mkdir(eval_result_dir)
+
+    # model = ResnetVAE('resnet' + str(args.resnet_version), latent_encoding_channels=args.latent_size, skip_connection_type='concat')
+    model = ResnetVAE(
+        {
+            'block_lengths': [1, 1, 1, 1],
+            'block': 'BasicBlock'
+        },
+        latent_encoding_channels=args.latent_size, skip_connection_type='concat'
+    )
 
     # set model on eval mode
     model = model.eval()
@@ -177,6 +183,9 @@ if __name__ == '__main__':
     batch_stats = []
     batch_kld_losses = []
 
+    all_information_gain = []
+    all_information_gain_GT = []
+
     with torch.no_grad(): # avoid computation of gradients during test
         for batch_idx, (input, ground_truth, info) in enumerate(test_loader):
             if batch_idx % 10 == 0:
@@ -194,57 +203,88 @@ if __name__ == '__main__':
             batch_stats.append(compute_model_stats(input, recon_batch, ground_truth))
             batch_kld_losses.append(custom_loss_functions.kl_divergence_loss(mu, logvariance).item() / args.batch_size)
 
-            expected_info_gain = compute_expected_information_gain(input, recon_batch, info, 'expected')
-            ground_truth_info_gain = compute_expected_information_gain(input, ground_truth, info, 'ground_truth')
+            expected_info_gain, _ = compute_expected_information_gain(
+                input, recon_batch, info, os.path.join(eval_result_dir, 'expected' + str(batch_idx) + '.png')
+            )
+            ground_truth_info_gain, _ = compute_expected_information_gain(input, ground_truth, info,
+                                                                          os.path.join(eval_result_dir,
+                                                                                       'GT' + str(batch_idx) + '.png'))
 
+            batch_information_gain = [int(i['information_gain']) for i in expected_info_gain]
+            batch_information_gain_gt = [int(i['information_gain']) for i in ground_truth_info_gain]
+
+            all_information_gain.extend(batch_information_gain)
+            all_information_gain_GT.extend(batch_information_gain_gt)
             # print('batch stat', json.dumps(batch_stats[-1], indent=4), 'kld loss', batch_kld_losses[-1])
-            print('info gain error: ', [expected_info_gain[i]['information_gain'] - ground_truth_info_gain[i]['information_gain'] for i in range(len(expected_info_gain))])
-            print('predicted info gain:', [i['information_gain'] for i in expected_info_gain])
-            print('actual info gain:', [i['information_gain'] for i in ground_truth_info_gain])
-            print('\n\n')
-            # exit(0)
 
-    overall_stats = functools.reduce(
-        lambda sum, current: {i: sum[i] + current[i] for i in current},
-        batch_stats,
-        {i: 0 for i in batch_stats[0]}
-    )
+            # print('predicted info gain:', batch_information_gain)
+            # print('actual info gain:', batch_information_gain_gt)
+            # break
 
-    average_kld_loss = np.mean(batch_kld_losses)
+        overall_stats = functools.reduce(
+            lambda sum, current: {i: sum[i] + current[i] for i in current},
+            batch_stats,
+            {i: 0 for i in batch_stats[0]}
+        )
 
-    print('average_kld_loss', average_kld_loss)
-    print('overall_stats', json.dumps(overall_stats, indent=4))
+        average_kld_loss = np.mean(batch_kld_losses)
+        average_information_gain = np.mean(all_information_gain)
+        average_information_gain_GT = np.mean(all_information_gain_GT)
 
-    def divide(x: int, y: int):
-        return x / y if y else float('NaN')
 
-    print(json.dumps(
-        {
-            'accuracy':
-                divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
-                       overall_stats['total']),
+        def divide(x: int, y: int):
+            return x / y if y else float('NaN')
 
-            'generous_accuracy':
-                divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
-                       overall_stats['total_knowns']),
 
-            'obstacle_precision':
-                divide(overall_stats['true_positives'], overall_stats['total_predicted_positives']),
+        eval_info_json = json.dumps({'average_information_gain': average_information_gain,
+                                     'average_information_gain_GT': average_information_gain_GT,
+                                     'average_kld_loss': average_kld_loss,
+                                     'overall_stats': overall_stats,
+                                     'accuracy':
+                                         divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
+                                                overall_stats['total']),
 
-            'obstacle_recall':
-                divide(overall_stats['true_positives'], overall_stats['total_positives']),
+                                     'generous_accuracy':
+                                         divide(overall_stats['true_positives'] + overall_stats['true_negatives'],
+                                                overall_stats['total_knowns']),
 
-            'obstacle_generous_recall':
-                divide(overall_stats['true_positives'], overall_stats['total_certain_positives']),
+                                     'obstacle_precision':
+                                         divide(overall_stats['true_positives'],
+                                                overall_stats['total_predicted_positives']),
 
-            'free_precision':
-                divide(overall_stats['true_negatives'], overall_stats['total_predicted_negatives']),
+                                     'obstacle_recall':
+                                         divide(overall_stats['true_positives'], overall_stats['total_positives']),
 
-            'free_recall':
-                divide(overall_stats['true_negatives'], (overall_stats['total_negatives'])),
+                                     'obstacle_generous_recall':
+                                         divide(overall_stats['true_positives'],
+                                                overall_stats['total_certain_positives']),
 
-            'free_generous_recall':
-                divide(overall_stats['true_negatives'], (overall_stats['total_certain_negatives'])),
-        },
-        indent=4
-    ))
+                                     'free_precision':
+                                         divide(overall_stats['true_negatives'],
+                                                overall_stats['total_predicted_negatives']),
+
+                                     'free_recall':
+                                         divide(overall_stats['true_negatives'], (overall_stats['total_negatives'])),
+
+                                     'free_generous_recall':
+                                         divide(overall_stats['true_negatives'],
+                                                (overall_stats['total_certain_negatives'])),
+                                     }, indent=2)
+
+        all_info_gain_json = json.dumps(
+            {
+                "all_information_gain": all_information_gain,
+                "all_information_gain_gt": all_information_gain_GT
+            }, indent=2
+        )
+
+        print(eval_info_json)
+
+        eval_file_path = os.path.join(result_dir, "eval_info.json")
+        information_gain_path = os.path.join(result_dir, 'all_information_gain.json')
+
+        with open(eval_file_path, 'w') as f:
+            f.write(eval_info_json)
+
+        with open(information_gain_path, 'w') as f:
+            f.write(all_info_gain_json)
