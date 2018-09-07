@@ -16,7 +16,7 @@ SIM_TIME_LABEL = "SimulationTimeCost"
 SYS_TIME_LABEL = "SystemTimeCost"
 
 COLORS = [
-    'b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'
+    'b', 'g', 'r', 'c', 'm', 'y', 'k', '#FF00FF', '#FFFF00', '#00FFFF'
 ]
 
 X_LABELS = [TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
