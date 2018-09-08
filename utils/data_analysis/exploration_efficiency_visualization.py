@@ -340,13 +340,17 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
     plt.clf()
     maxes = []
-    max_coverage = float('-inf')
+    max_coverage = functools.reduce(
+        lambda acc, x: x if x > acc else acc,
+        map(lambda x: x[floorplan_name][data_type]["y"][-1], avg_tests),
+        float('-inf')
+    )
     for idx in range(len(avg_tests)):
         x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
-        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])
-        y_std = avg_tests[idx][floorplan_name][data_type]["y_std"]
-        y_q1 = avg_tests[idx][floorplan_name][data_type]["y_q1"]
-        y_q3 = avg_tests[idx][floorplan_name][data_type]["y_q3"]
+        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"]) * 100 / max_coverage
+        y_std = np.asarray(avg_tests[idx][floorplan_name][data_type]["y_std"]) * 100 / max_coverage
+        y_q1 = np.asarray(avg_tests[idx][floorplan_name][data_type]["y_q1"]) * 100 / max_coverage
+        y_q3 = np.asarray(avg_tests[idx][floorplan_name][data_type]["y_q3"]) * 100 / max_coverage
         
         # print('dispersion:', y_std, y_q1, y_q3)
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
@@ -357,13 +361,11 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
-        max_coverage = max(max_coverage, y_data[-1])
 
     outputs = [] 
     for idx in range(len(avg_tests)):
         x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
-        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])
-        y_data = y_data / max_coverage * 100.0
+        y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])  * 100 / max_coverage
 
         output_json = OrderedDict([
             ('floorplan', floorplan_name),
@@ -371,9 +373,9 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
             ('type', data_type), 
             ('max_x', x_data[-1]), 
             ('max_y', y_data[-1]), 
-            # ('80%', evaluate_percent_coverage(x_data, y_data, 80)), 
+            ('85%', evaluate_percent_coverage(x_data, y_data, 85)),
             ('90%', evaluate_percent_coverage(x_data, y_data, 90)),
-            # ('95%', evaluate_percent_coverage(x_data, y_data, 95)), 
+            ('95%', evaluate_percent_coverage(x_data, y_data, 95)),
             # ('99%', evaluate_percent_coverage(x_data, y_data, 99))
         ])
         # print(json.dumps(output_json, indent=4))
@@ -395,6 +397,35 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     # plt.show()
 
     return outputs
+
+def group_outputs(outputs):
+    """
+    groups outputs based on floor plan, label and type (metric)
+    :param outputs: list of dicts containing evaluations of individual floor plans, labels and metric type
+    :return: dict of dict of dict (keys floor plan, label and type) containing evaluations
+    """
+    grouped = {}
+    for output in outputs:
+        floorplan = output['floorplan']
+        label = output['label']
+        type = output['type']
+
+        if floorplan not in grouped:
+            grouped[floorplan] = {}
+
+        if type not in grouped[floorplan]:
+            grouped[floorplan][type] = {}
+
+        if label not in grouped[floorplan][type]:
+            grouped[floorplan][type][label] = []
+
+        grouped[floorplan][type][label].append(
+            OrderedDict(sorted(
+                {i: output[i] for i in output if i not in ['floorplan', 'label', 'type']}.items()
+            ))
+        )
+
+    return grouped
 
 
 def extend_ticks(x_ticks, x_ticks_labels, new_ticks):

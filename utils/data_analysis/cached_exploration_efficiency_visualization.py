@@ -3,7 +3,7 @@ import argparse
 import json
 import functools
 
-from exploration_efficiency_visualization import visualize_floorplan, compare_outputs, TRAJECTORY_LABEL, SIM_TIME_LABEL
+from exploration_efficiency_visualization import visualize_floorplan, compare_outputs, group_outputs, TRAJECTORY_LABEL, SIM_TIME_LABEL
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate Cached Exploration Results')
@@ -24,6 +24,7 @@ if __name__ == '__main__':
                 floorplan, 
                 data_type=x_label
             ))
-    outputs = sorted(outputs, key=functools.cmp_to_key(compare_outputs))
+    outputs = group_outputs(outputs)
+    # outputs = sorted(outputs, key=functools.cmp_to_key(compare_outputs))
     print(json.dumps(outputs, indent=4))
     
