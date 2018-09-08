@@ -8,6 +8,7 @@ import functools
 import matplotlib.pyplot as plt
 import argparse
 from collections import OrderedDict
+import copy
 
 # custom import
 import utils.constants as const
@@ -404,28 +405,105 @@ def group_outputs(outputs):
     :param outputs: list of dicts containing evaluations of individual floor plans, labels and metric type
     :return: dict of dict of dict (keys floor plan, label and type) containing evaluations
     """
-    grouped = {}
+    # grouped according to labels to plot
+    label_grouped = {}
+    # grouped according to floorplan (to compute averages for sorting)
+    floorplan_grouped = {}
+
+    labels = set(map(lambda x: x['label'], outputs))
+    floorplans = sorted(set(map(lambda x: x['label'], outputs)))
+
     for output in outputs:
         floorplan = output['floorplan']
         label = output['label']
         type = output['type']
 
-        if floorplan not in grouped:
-            grouped[floorplan] = {}
+        if type not in floorplan_grouped:
+            floorplan_grouped[type] = {}
 
-        if type not in grouped[floorplan]:
-            grouped[floorplan][type] = {}
+        for metric in output:
+            if metric in ['floorplan', 'label', 'type']:
+                # not real comparison metric
+                continue
 
-        if label not in grouped[floorplan][type]:
-            grouped[floorplan][type][label] = []
+            if metric not in floorplan_grouped[type]:
+                floorplan_grouped[type][metric] = {}
 
-        grouped[floorplan][type][label].append(
-            OrderedDict(sorted(
-                {i: output[i] for i in output if i not in ['floorplan', 'label', 'type']}.items()
-            ))
-        )
+            if floorplan not in floorplan_grouped[type][metric]:
+                floorplan_grouped[type][metric][floorplan] = {}
 
-    return grouped
+            if label not in floorplan_grouped[type][metric][floorplan]:
+                floorplan_grouped[type][metric][floorplan][label] = output[metric]
+
+
+        # if label not in floorplan_grouped[floorplan][type]:
+        #     floorplan_grouped[floorplan][type][label] = []
+        #
+        # floorplan_grouped[floorplan][type][label].append(
+        #     OrderedDict(sorted(
+        #         {i: output[i] for i in output if i not in ['floorplan', 'label', 'type']}.items()
+        #     ))
+        # )
+
+    floorplan_avg_metric = copy.deepcopy(floorplan_grouped)
+    for type in floorplan_avg_metric:
+        for metric in floorplan_avg_metric[type]:
+            for floorplan in floorplan_avg_metric[type][metric]:
+                floorplan_avg_metric[type][metric][floorplan] = \
+                    np.mean(list(floorplan_avg_metric[type][metric][floorplan].values()))
+
+    sorted_floorplan = copy.deepcopy(floorplan_avg_metric)
+    for type in sorted_floorplan:
+        for metric in sorted_floorplan[type]:
+            sorted_floorplan[type][metric] = OrderedDict(sorted(list(sorted_floorplan[type][metric].items()), key=lambda x: x[1]))
+
+    # group according to label (algorithm)
+    for type in floorplan_grouped:
+        label_grouped[type] = {}
+        for metric in floorplan_grouped[type]:
+            label_grouped[type][metric] = {}
+            for floorplan in floorplan_grouped[type][metric]:
+                for label in floorplan_grouped[type][metric][floorplan]:
+                    if label not in label_grouped[type][metric]:
+                        label_grouped[type][metric][label] = {}
+                    label_grouped[type][metric][label][floorplan] = floorplan_grouped[type][metric][floorplan][label]
+
+    for type in label_grouped:
+        for metric in label_grouped[type]:
+            for label in label_grouped[type][metric]:
+                label_grouped[type][metric][label] = OrderedDict(
+                    [
+                        (floorplan, label_grouped[type][metric][label][floorplan]) for floorplan in sorted_floorplan[type][metric].keys()
+                    ]
+                )
+
+    # print(json.dumps(floorplan_avg_metric, indent=4))
+    # print(json.dumps(sorted_floorplan, indent=4))
+    return label_grouped
+
+def plot_grouped_avg_results(label_grouped):
+    for type in label_grouped:
+        for metric in label_grouped[type]:
+            plt.clf()
+            for idx, label in enumerate(label_grouped[type][metric]):
+                data = label_grouped[type][metric][label]
+                x = list(range(len(data)))
+                y = list(data.values())
+                x_ticks_label = list(data.keys())
+
+                x_label, y_label = getXYLabel(type)
+                plt.xlabel("floor plans")
+                plt.ylabel(metric)
+                plt.plot(x, y, label=label, color=COLORS[idx])
+                plt.scatter(x, y, color=COLORS[idx])
+                plt.legend(loc='lower right')
+                # plt.title("{}".format(floorplan_name))
+
+                plt.xticks(x, x_ticks_label)
+                # plt.savefig('/tmp/{}_{}_{}.png'.format(floorplan_name, data_type, "_".join(test_labels)))
+                # plt.savefig('/tmp/{}_{}_{}.eps'.format(floorplan_name, data_type, "_".join(test_labels)))
+            plt.show()
+
 
 
 def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
@@ -494,19 +572,19 @@ if __name__ == "__main__":
         all_tests.append(one_test)
         # all_explore_data.append(one_test.aggregate_exploration_data())
         all_avg_floorplan_results.append(one_test.average_floorplan_data())
-    
+
     common_floorplan = all_tests[0].data.keys()
 
     for i in range(len(all_tests)):
         common_floorplan = common_floorplan & all_tests[i].data.keys()
-    
+
     # save the data to avoid recomputations
     all_data_dict = dict(zip(
-        labels, 
+        labels,
         [{floorplan: i.data[floorplan] for floorplan in common_floorplan} for i in all_tests]
     ))
     all_avg_data_dict = dict(zip(
-        labels, 
+        labels,
         [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
     ))
     with open('/tmp/all_data.json', 'w') as f:
@@ -524,15 +602,15 @@ if __name__ == "__main__":
         for x_label in [TRAJECTORY_LABEL, SIM_TIME_LABEL]:
             label_data_tuples = sorted(list(all_avg_data_dict.items()))
             outputs.extend(visualize_floorplan(
-                [i[1] for i in label_data_tuples], 
-                [i[0] for i in label_data_tuples], 
-                floorplan, 
+                [i[1] for i in label_data_tuples],
+                [i[0] for i in label_data_tuples],
+                floorplan,
                 data_type=x_label
             ))
-    
+
     sorted(outputs, key=functools.cmp_to_key(compare_outputs))
     print(json.dumps(outputs), indent=4)
-    
+
     # dir_info_gain = args.results_dirs
     # dir_info_gain_gt = args.info_gain_gt_results_dir
     # dir_no_info_gain = args.no_info_gain_results_dir

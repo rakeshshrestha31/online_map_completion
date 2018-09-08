@@ -4,7 +4,7 @@ import json
 import functools
 
 from exploration_efficiency_visualization import visualize_floorplan, compare_outputs, group_outputs, TRAJECTORY_LABEL, SIM_TIME_LABEL
-
+import exploration_efficiency_visualization
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate Cached Exploration Results')
     parser.add_argument('cached_avg_data', type=str, metavar='S',
@@ -24,7 +24,9 @@ if __name__ == '__main__':
                 floorplan, 
                 data_type=x_label
             ))
-    outputs = group_outputs(outputs)
+    grouped_outputs = group_outputs(outputs)
+    exploration_efficiency_visualization.plot_grouped_avg_results(grouped_outputs)
+
     # outputs = sorted(outputs, key=functools.cmp_to_key(compare_outputs))
-    print(json.dumps(outputs, indent=4))
+    print(json.dumps(grouped_outputs, indent=4))
     
