@@ -373,11 +373,12 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
             ('label', test_labels[idx]), 
             ('type', data_type), 
             ('max_x', x_data[-1]), 
-            ('max_y', y_data[-1]), 
+            ('max_y', y_data[-1]),
+            ('80%', evaluate_percent_coverage(x_data, y_data, 80)),
             ('85%', evaluate_percent_coverage(x_data, y_data, 85)),
             ('90%', evaluate_percent_coverage(x_data, y_data, 90)),
             ('95%', evaluate_percent_coverage(x_data, y_data, 95)),
-            # ('99%', evaluate_percent_coverage(x_data, y_data, 99))
+            ('99%', evaluate_percent_coverage(x_data, y_data, 99))
         ])
         # print(json.dumps(output_json, indent=4))
         outputs.append(output_json)
@@ -500,8 +501,9 @@ def plot_grouped_avg_results(label_grouped):
                 # plt.title("{}".format(floorplan_name))
 
                 plt.xticks(x, x_ticks_label)
-                # plt.savefig('/tmp/{}_{}_{}.png'.format(floorplan_name, data_type, "_".join(test_labels)))
-                # plt.savefig('/tmp/{}_{}_{}.eps'.format(floorplan_name, data_type, "_".join(test_labels)))
+
+            plt.savefig('/tmp/{}.png'.format(metric))
+            plt.savefig('/tmp/{}.eps'.format(metric))
             plt.show()
 
 
@@ -532,8 +534,8 @@ def evaluate_percent_coverage(x, y, percent):
     @return x value that achieves given percentage of y
     """
     if percent > max(y):
-        # idx = -1
-        return -1
+        idx = -1
+        # return -1
     else:
         idx = np.argmax(y > percent)
     return x[idx]
