@@ -284,10 +284,11 @@ class InfoDataset:
 
                     x_array = np.asarray(x)
                     y_array = np.asarray(y)
+                    percentage_evaluator = PercentageCoverageEvaluator(x_array, y_array)
 
                     for percentage in outputs[x_label][floorplan_name].keys():
                         outputs[x_label][floorplan_name][percentage].append(
-                            evaluate_percent_coverage(x_array, y_array, percentage)
+                            percentage_evaluator.evaluate_percent_coverage(percentage)
                         )
         return outputs
 
@@ -403,17 +404,19 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         x_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["x"])
         y_data = np.asarray(avg_tests[idx][floorplan_name][data_type]["y"])  * 100 / max_coverage
 
+        percentage_evaluator = PercentageCoverageEvaluator(x_data, y_data)
+
         output_json = OrderedDict([
             ('floorplan', floorplan_name),
             ('label', test_labels[idx]), 
             ('type', data_type), 
             ('max_x', x_data[-1]), 
             ('max_y', y_data[-1]),
-            ('80%', evaluate_percent_coverage(x_data, y_data, 80)),
-            ('85%', evaluate_percent_coverage(x_data, y_data, 85)),
-            ('90%', evaluate_percent_coverage(x_data, y_data, 90)),
-            ('95%', evaluate_percent_coverage(x_data, y_data, 95)),
-            ('99%', evaluate_percent_coverage(x_data, y_data, 99))
+            ('80%', percentage_evaluator.evaluate_percent_coverage(80)),
+            ('85%', percentage_evaluator.evaluate_percent_coverage(85)),
+            ('90%', percentage_evaluator.evaluate_percent_coverage(90)),
+            ('95%', percentage_evaluator.evaluate_percent_coverage(95)),
+            ('99%', percentage_evaluator.evaluate_percent_coverage(99))
         ])
         # print(json.dumps(output_json, indent=4))
         outputs.append(output_json)
@@ -561,19 +564,36 @@ def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
     return x_ticks, x_ticks_labels
 
 
-def evaluate_percent_coverage(x, y, percent):
+class PercentageCoverageEvaluator:
     """
-    @param x x-labels
-    @param y y-lables (should be in percentage (<100)
-    @param percent
-    @return x value that achieves given percentage of y
+    evaluates percentage coverage for series of percentage given in increasing order
     """
-    if percent > max(y):
-        idx = -1
-        # return -1
-    else:
-        idx = np.argmax(y > percent)
-    return x[idx]
+    def __init__(self, x, y):
+        """
+        @param x x-labels
+        @param y y-lables (should be in percentage (<100)) in increasing order
+        """
+        self.x = x
+        self.y = y
+
+        self.last_idx = 0
+
+    def evaluate_percent_coverage(self, percent):
+        """
+        @param percent (successive calls should give percent in increasing order
+        @return x value that achieves given percentage of y
+        """
+        # TODO: check is percent greater than the last time
+
+        if percent > self.y[-1]:
+            idx = -1
+            # return -1
+        else:
+            idx = np.argmax(self.y[self.last_idx:] > percent)
+            idx += self.last_idx
+
+        self.last_idx = idx
+        return self.x[idx]
 
 def compare_outputs(output1, output2):
     "compares the dictionary outputs for sorting"
@@ -596,7 +616,7 @@ if __name__ == "__main__":
                         help='result labels, corresponding to each result directories')
     parser.add_argument('--repeat_times', type=int, default=10, metavar='N',
                         help='repeat times for each floorplan')
-    parser.add_argument('--num_workers', type=int, default=3, metavar='N',
+    parser.add_argument('--num_workers', type=int, default=1, metavar='N',
                         help='num processes to spawn')
 
     args = parser.parse_args()
