@@ -279,6 +279,8 @@ class InfoDataset:
         for x_label in output_labels:
             for floorplan_name in common_floorplan_names:
                 for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
+                    if self.exploration_data[floorplan_name][one_run_idx] is None:
+                        continue
                     y = self.exploration_data[floorplan_name][one_run_idx][PERCENT_AREA_LABEL]
                     x = self.exploration_data[floorplan_name][one_run_idx][x_label]
 
