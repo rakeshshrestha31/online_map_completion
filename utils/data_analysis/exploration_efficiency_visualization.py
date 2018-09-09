@@ -146,6 +146,8 @@ class InfoDataset:
         self.update_ground_truth_data()
         self.load(directory, repeat_times)
 
+        self.exploration_data = self.aggregate_exploration_data()
+
     def load(self, directory, repeat_times):
         for floorplan_name in os.listdir(directory):
             self.data[floorplan_name] = {
@@ -199,12 +201,15 @@ class InfoDataset:
         return exploration_data
 
     def average_floorplan_data(self):
+        """
+        :return: average and all data
+        """
         floorplan_names = self.data.keys()
-        exploration_data = self.aggregate_exploration_data()
         data_types = ALL_LABELS
         average_data = dict()
+
         for floorplan_name in floorplan_names:
-            one_floorplan_data = exploration_data[floorplan_name]
+            one_floorplan_data = self.exploration_data[floorplan_name]
             aggregate_floorplan = dict()
             for type in data_types:
                 aggregate_floorplan[type] = []
@@ -216,7 +221,8 @@ class InfoDataset:
             x_types = X_LABELS
             x_intervals = BIN_INTERVELS
 
-            average_floorplan = dict()
+            average_floorplan = {}
+
             # y_data_numpy = np.asarray(aggregate_floorplan[AREA_LABEL])
             y_data_numpy = np.asarray(aggregate_floorplan[PERCENT_AREA_LABEL])
             for idx in range(len(x_types)):
@@ -235,8 +241,8 @@ class InfoDataset:
                 digitized = np.digitize(floorplan_data_numpy, bins)
 
                 # get y bins data from average
-                # y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
-                y_data_bins = [y_data_numpy[digitized == i].median() for i in range(1, len(bins))]
+                y_data_bins = [y_data_numpy[digitized == i].mean() for i in range(1, len(bins))]
+                # y_data_bins = [y_data_numpy[digitized == i].median() for i in range(1, len(bins))]
 
                 y_data_bins_std = [y_data_numpy[digitized == i].std() for i in range(1, len(bins))]
                 y_q1 = [np.percentile(y_data_numpy[digitized == i], 25) for i in range(1, len(bins))]
@@ -504,7 +510,7 @@ def plot_grouped_avg_results(label_grouped):
 
             plt.savefig('/tmp/{}.png'.format(metric))
             plt.savefig('/tmp/{}.eps'.format(metric))
-            plt.show()
+            # plt.show()
 
 
 
@@ -568,12 +574,14 @@ if __name__ == "__main__":
     all_tests = []
     # all_explore_data = []
     all_avg_floorplan_results = []
+    all_exploration_data = []
 
     for directory in directories:
         one_test = InfoDataset(directory, repeat, original_dataset_dir)
         all_tests.append(one_test)
         # all_explore_data.append(one_test.aggregate_exploration_data())
         all_avg_floorplan_results.append(one_test.average_floorplan_data())
+        all_exploration_data.append(one_test.exploration_data)
 
     common_floorplan = all_tests[0].data.keys()
 
@@ -581,18 +589,25 @@ if __name__ == "__main__":
         common_floorplan = common_floorplan & all_tests[i].data.keys()
 
     # save the data to avoid recomputations
-    all_data_dict = dict(zip(
-        labels,
-        [{floorplan: i.data[floorplan] for floorplan in common_floorplan} for i in all_tests]
-    ))
-    all_avg_data_dict = dict(zip(
+    # all_data_dict = OrderedDict(zip(
+    #     labels,
+    #     [{floorplan: i.data[floorplan] for floorplan in common_floorplan} for i in all_tests]
+    # ))
+    all_avg_data_dict = OrderedDict(zip(
         labels,
         [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
     ))
-    with open('/tmp/all_data.json', 'w') as f:
-        json.dump(all_data_dict, f, indent=4)
+    all_exploration_data = OrderedDict(zip(
+        labels,
+        [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_exploration_data]
+    ))
+
+    # with open('/tmp/all_data.json', 'w') as f:
+    #     json.dump(all_data_dict, f, indent=4)
     with open('/tmp/all_avg_data.json', 'w') as f:
         json.dump(all_avg_data_dict, f, indent=4)
+    with open('/tmp/all_exploration_data.json', 'w') as f:
+        json.dump(all_exploration_data, f, indent=4)
 
     outputs = []
     for floorplan in common_floorplan:
@@ -611,71 +626,4 @@ if __name__ == "__main__":
             ))
 
     sorted(outputs, key=functools.cmp_to_key(compare_outputs))
-    print(json.dumps(outputs), indent=4)
-
-    # dir_info_gain = args.results_dirs
-    # dir_info_gain_gt = args.info_gain_gt_results_dir
-    # dir_no_info_gain = args.no_info_gain_results_dir
-    #
-    #
-    # data_no_ig = InfoDataset(dir_no_info_gain, repeat)
-    # data_ig = InfoDataset(dir_info_gain, repeat)
-    # data_ig_gt = InfoDataset(dir_info_gain_gt, repeat)
-    #
-    # explore_data_no_ig = data_no_ig.aggregate_exploration_data()
-    # explore_data_ig = data_ig.aggregate_exploration_data()
-    # explore_data_ig_gt = data_ig_gt.aggregate_exploration_data()
-    #
-    # avg_floorplan_data_no_ig = data_no_ig.average_floorplan_data()
-    # avg_floorplan_data_ig = data_ig.average_floorplan_data()
-    # avg_floorplan_data_ig_gt = data_ig_gt.average_floorplan_data()
-
-    # avg_dataset_ig = data_ig.average_dataset()
-    # avg_dataset_no_ig = data_no_ig.average_dataset()
-    # plt.clf()
-    # plt.plot(avg_dataset_ig["TrajectoryLens"]["x"], avg_dataset_ig["TrajectoryLens"]["y"], label='average_dataset_ig')
-    # plt.plot(avg_dataset_no_ig["TrajectoryLens"]["x"], avg_dataset_no_ig["TrajectoryLens"]["y"],
-    #          label='average_dataset_no_ig')
-    # plt.show()
-
-    # keys_no_ig = explore_data_no_ig.keys()
-    # keys_ig = explore_data_ig.keys()
-    # keys_ig_gt = explore_data_ig_gt.keys()
-    #
-    # keys_common = keys_no_ig & keys_ig & keys_ig_gt
-    #
-    # for key in keys_common:
-    #
-    #     visualize_average_floorplan(data_ig=avg_floorplan_data_ig, data_ig_gt=avg_floorplan_data_ig_gt,
-    #                                 data_no_ig=avg_floorplan_data_no_ig, floorplan_name=key, data_type=SIM_TIME_LABEL)
-    #
-    #     visualize_average_floorplan(data_ig=avg_floorplan_data_ig, data_ig_gt=avg_floorplan_data_ig_gt,
-    #                                 data_no_ig=avg_floorplan_data_no_ig, floorplan_name=key, data_type=TRAJECTORY_LABEL)
-    #
-    #     floorplan_data_no_ig = explore_data_no_ig[key]
-    #     floorplan_data_ig = explore_data_ig[key]
-    #     floorplan_data_ig_gt = explore_data_ig_gt[key]
-
-        # for t in range(repeat):
-        #     one_exploration_no_ig = floorplan_data_no_ig[t]
-        #     one_exploration_ig = floorplan_data_ig[t]
-        #
-        #     if one_exploration_no_ig is None or one_exploration_ig is None:
-        #         continue
-        #     else:
-        #         plt.clf()
-        #         plt.plot(one_exploration_ig["TrajectoryLens"], one_exploration_ig["ExploredArea"],
-        #                  label='info_gain')
-        #         plt.plot(one_exploration_no_ig["TrajectoryLens"], one_exploration_no_ig["ExploredArea"],
-        #                  label='no_info_gain')
-        #         # plt.plot(one_exploration_ig["SimulationTimeCost"], one_exploration_ig["ExploredArea"],
-        #         #          label='info_gain')
-        #         # plt.plot(one_exploration_no_ig["SimulationTimeCost"], one_exploration_no_ig["ExploredArea"],
-        #         #          label='no_info_gain')
-        #         # plt.plot(one_exploration_ig["SystemTimeCost"], one_exploration_ig["ExploredArea"],
-        #         #          label='info_gain')
-        #         # plt.plot(one_exploration_no_ig["SystemTimeCost"], one_exploration_no_ig["ExploredArea"],
-        #         #          label='no_info_gain')
-        #         plt.legend(loc='lower right')
-        #         plt.title("{}-{}".format(key, t + 1))
-        #         plt.show()
+    print(json.dumps(outputs, indent=4))
