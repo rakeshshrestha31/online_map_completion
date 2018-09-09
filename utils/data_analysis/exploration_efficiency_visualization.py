@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import argparse
 from collections import OrderedDict
 import copy
+from multiprocessing import Pool
 
 # custom import
 import utils.constants as const
@@ -132,12 +133,12 @@ def aggregate_one_explore_data(one_explore_data, total_area=100.0):
 
     return aggregation
 
-
 class InfoDataset:
     # static member to hold ground truth data (so that we don't parse it again and again)
     ground_truth_data = {}
 
     def __init__(self, directory, repeat_times, original_dataset_dir):
+        print('parsing directory {}'.format(directory))
         self.data = dict()
         self.directory = directory
         self.repeat_times = repeat_times
@@ -169,7 +170,7 @@ class InfoDataset:
     
     def update_ground_truth_data(self):
         from kth.FloorPlanGraph import FloorPlanGraph
-        for floorplan_name in os.listdir(directory):
+        for floorplan_name in os.listdir(self.directory):
             if floorplan_name not in self.ground_truth_data:
                 xml_files = glob.glob(
                     os.path.join(self.original_dataset_dir, '**', '{}.xml'.format(floorplan_name)), 
@@ -261,6 +262,34 @@ class InfoDataset:
             average_data[floorplan_name] = average_floorplan
 
         return average_data
+
+    def finish_time_data(self, output_labels=[SIM_TIME_LABEL, TRAJECTORY_LABEL]):
+        common_floorplan_names = self.exploration_data.keys()
+
+        outputs = {
+            label: {
+                floorplan_name: OrderedDict([
+                    (75, []), (80, []), (85, []), (90, []), (95, []), (100, [])
+                ])
+                for floorplan_name in common_floorplan_names
+            }
+            for label in output_labels
+        }
+
+        for x_label in output_labels:
+            for floorplan_name in common_floorplan_names:
+                for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
+                    y = self.exploration_data[floorplan_name][one_run_idx][PERCENT_AREA_LABEL]
+                    x = self.exploration_data[floorplan_name][one_run_idx][x_label]
+
+                    x_array = np.asarray(x)
+                    y_array = np.asarray(y)
+
+                    for percentage in outputs[x_label][floorplan_name].keys():
+                        outputs[x_label][floorplan_name][percentage].append(
+                            evaluate_percent_coverage(x_array, y_array, percentage)
+                        )
+        return outputs
 
     # deprecated!!!
     def average_dataset(self):
@@ -553,6 +582,10 @@ def compare_outputs(output1, output2):
     else:
         return output1['label'] < output2['label']
 
+def parse_directory(directory):
+    # nonlocal repeat, original_dataset_dir
+    return InfoDataset(directory, repeat, original_dataset_dir)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluate Exploration Results')
     parser.add_argument('original_dataset_dir', type=str, metavar='S',
@@ -563,6 +596,8 @@ if __name__ == "__main__":
                         help='result labels, corresponding to each result directories')
     parser.add_argument('--repeat_times', type=int, default=10, metavar='N',
                         help='repeat times for each floorplan')
+    parser.add_argument('--num_workers', type=int, default=3, metavar='N',
+                        help='num processes to spawn')
 
     args = parser.parse_args()
 
@@ -575,39 +610,70 @@ if __name__ == "__main__":
     # all_explore_data = []
     all_avg_floorplan_results = []
     all_exploration_data = []
+    all_arrival_time_data = []
 
-    for directory in directories:
-        one_test = InfoDataset(directory, repeat, original_dataset_dir)
-        all_tests.append(one_test)
-        # all_explore_data.append(one_test.aggregate_exploration_data())
-        all_avg_floorplan_results.append(one_test.average_floorplan_data())
-        all_exploration_data.append(one_test.exploration_data)
+    p = Pool(args.num_workers)
+
+    all_tests = p.map(
+        parse_directory,
+        directories
+    )
+    # all_tests = map(parse_directory, directories)
+
+    for one_test in all_tests:
+        # all_avg_floorplan_results.append(one_test.average_floorplan_data())
+        # all_exploration_data.append(one_test.exploration_data)
+        all_arrival_time_data.append(one_test.finish_time_data())
+
+    # for directory in directories:
+    #     one_test = InfoDataset(directory, repeat, original_dataset_dir)
+    #     all_tests.append(one_test)
+    #     # all_avg_floorplan_results.append(one_test.average_floorplan_data())
+    #     # all_exploration_data.append(one_test.exploration_data)
+    #     all_arrival_time_data.append(one_test.finish_time_data())
 
     common_floorplan = all_tests[0].data.keys()
 
     for i in range(len(all_tests)):
         common_floorplan = common_floorplan & all_tests[i].data.keys()
 
+
+
     # save the data to avoid recomputations
+    all_arrival_time_data = OrderedDict(zip(
+        labels,
+        [{
+            eval_metric: {
+                floorplan: all_arrival_time_data[i][eval_metric][floorplan]
+                for floorplan in common_floorplan
+            }
+            for eval_metric in all_arrival_time_data[i].keys()
+
+        } for i in range(len(all_arrival_time_data))]
+    ))
+
     # all_data_dict = OrderedDict(zip(
     #     labels,
     #     [{floorplan: i.data[floorplan] for floorplan in common_floorplan} for i in all_tests]
     # ))
-    all_avg_data_dict = OrderedDict(zip(
-        labels,
-        [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
-    ))
-    all_exploration_data = OrderedDict(zip(
-        labels,
-        [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_exploration_data]
-    ))
+    # all_avg_data_dict = OrderedDict(zip(
+    #     labels,
+    #     [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
+    # ))
+    # all_exploration_data = OrderedDict(zip(
+    #     labels,
+    #     [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_exploration_data]
+    # ))
 
-    # with open('/tmp/all_data.json', 'w') as f:
-    #     json.dump(all_data_dict, f, indent=4)
-    with open('/tmp/all_avg_data.json', 'w') as f:
-        json.dump(all_avg_data_dict, f, indent=4)
-    with open('/tmp/all_exploration_data.json', 'w') as f:
-        json.dump(all_exploration_data, f, indent=4)
+    # # with open('/tmp/all_data.json', 'w') as f:
+    # #     json.dump(all_data_dict, f, indent=4)
+    # with open('/tmp/all_avg_data.json', 'w') as f:
+    #     json.dump(all_avg_data_dict, f, indent=4)
+    # with open('/tmp/all_exploration_data.json', 'w') as f:
+    #     json.dump(all_exploration_data, f, indent=4)
+    with open('/tmp/all_arrival_time_data.json', 'w') as f:
+        json.dump(all_arrival_time_data, f, indent=4)
+    exit(0)
 
     outputs = []
     for floorplan in common_floorplan:
