@@ -6,6 +6,7 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
+import os
 
 from exploration_efficiency_visualization import visualize_floorplan, compare_outputs, group_outputs, TRAJECTORY_LABEL, \
     SIM_TIME_LABEL, PERCENT_AREA_LABEL
@@ -63,7 +64,30 @@ def show_histogram():
                 # plt.show()
 
 
+def sort_floorplan(test_data, floorplan_names, test_type):
+    for percentage in test_data.keys():
+        floorplans_data = []
+        for floorplan_name in floorplan_names:
+            algorithms_data = []
+            for algorithm in test_data[percentage].keys():
+                algorithms_data.append((algorithm, test_data[percentage][algorithm][floorplan_name][test_type]))
+            algorithms_data = OrderedDict(algorithms_data)
+            floorplans_data.append((floorplan_name, algorithms_data))
+        floorplans_data = OrderedDict(floorplans_data)
+
+    avg_flooplans_data = [
+        (floorplan_name, np.mean(list(floorplans_data[floorplan_name].values())))
+        for floorplan_name in floorplans_data.keys()
+    ]
+
+    sorted_floorplans_data = OrderedDict(sorted(avg_flooplans_data, key=lambda x: x[1]))
+    # print(sorted_floorplans_data)
+    return sorted_floorplans_data
+
+
 def show_t_score(test_type='t', null_algorithm='250_info'):
+    plt.rcParams["figure.figsize"] = (16, 12)
+
     skip_floorplans = ['50052755', '50057023', '50055642']
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
     algorithms = list(all_arrival_time_data_dict.keys())
@@ -82,11 +106,10 @@ def show_t_score(test_type='t', null_algorithm='250_info'):
 
                 null_data = all_arrival_time_data_dict[null_algorithm][eval_metric][floorplan_name][percentage]
 
-
                 plt.clf()
                 for algorthm_idx, algorithm in enumerate(all_arrival_time_data_dict.keys()):
-                    if algorithm == null_algorithm:
-                        continue
+                    # if algorithm == null_algorithm:
+                    #     continue
                     algorithm_data = all_arrival_time_data_dict[algorithm][eval_metric][floorplan_name][percentage]
 
                     t, p = scipy.stats.ttest_ind(algorithm_data, null_data, equal_var=False)
@@ -94,30 +117,21 @@ def show_t_score(test_type='t', null_algorithm='250_info'):
                     if algorithm not in t_test_data[percentage]:
                         t_test_data[percentage][algorithm] = {}
 
-                    t_test_data[percentage][algorithm][floorplan_name] = {'t': t, 'p': 2 * p}
+                    t_test_data[percentage][algorithm][floorplan_name] = {
+                        't': t,
+                        'p': 2 * p,
+                        'mean': np.mean(algorithm_data),
+                        'median':  np.median(algorithm_data),
+                        'stddev': np.std(algorithm_data),
+                        'QD': np.percentile(algorithm_data, 75) - np.percentile(algorithm_data, 25)
+                    }
 
-        for percentage in t_test_data.keys():
-            floorplans_data = []
-            for floorplan_name in floorplan_names:
-                algorithms_data = []
-                for algorithm in t_test_data[percentage].keys():
-                    algorithms_data.append((algorithm, t_test_data[percentage][algorithm][floorplan_name][test_type]))
-                algorithms_data = OrderedDict(algorithms_data)
-                floorplans_data.append((floorplan_name, algorithms_data))
-            floorplans_data = OrderedDict(floorplans_data)
-
-        avg_flooplans_data = [
-            (floorplan_name, np.mean(list(floorplans_data[floorplan_name].values())))
-            for floorplan_name in floorplans_data.keys()
-        ]
-
-        sorted_floorplans_data = OrderedDict(sorted(avg_flooplans_data, key=lambda x: x[1]))
-        print(sorted_floorplans_data)
+        sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, test_type)
 
         for percentage in sorted(t_test_data.keys()):
             plt.clf()
             for algorithm_idx, algorithm in enumerate(algorithms):
-                if algorithm not in t_test_data[percentage]:
+                if algorithm not in t_test_data[percentage] or algorithm == null_algorithm:
                     continue
                 y = []
                 for floorplan_name in sorted_floorplans_data.keys():
@@ -134,9 +148,12 @@ def show_t_score(test_type='t', null_algorithm='250_info'):
 
             plt.xlabel('floor plans')
             plt.ylabel(test_type + ' score for ' + x_label_alias)
-            plt.legend(loc='lower right')
-            plt.title("{}".format(percentage + '_' + eval_metric))
-            plt.show()
+            # plt.legend(loc='lower right')
+            plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
+            plt.title(plot_title)
+            plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
+            plt.savefig(os.path.join('/tmp/', plot_title + '.eps'))
+            # plt.show()
 
 
 if __name__ == '__main__':
