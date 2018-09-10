@@ -304,7 +304,8 @@ class InfoDataset:
         max_labels = {
             label: {
                 floorplan_name: float('-inf')
-            } for floorplan_name in common_floorplan_names
+                for floorplan_name in common_floorplan_names
+            }
             for label in ALL_LABELS
         }
 
@@ -463,6 +464,29 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     # plt.show()
 
     return outputs
+
+
+def compute_max_labels(all_tests):
+    """
+    finds max labels (evaluation metrics) according for floor plan comparing all test algorithms
+    :param all_tests:
+    :return:
+    """
+    assert(len(all_tests))
+    new_max_labels = all_tests[0].max_labels
+
+    common_floorplan_names = all_tests[0].data.keys()
+    for i in range(len(all_tests)):
+        common_floorplan_names = common_floorplan_names & all_tests[i].data.keys()
+
+    for label in new_max_labels:
+        for floorplan_name in new_max_labels[label]:
+            for test in all_tests:
+                new_max_labels[label][floorplan_name] = max(test.max_labels[label][floorplan_name],
+                                                            new_max_labels[label][floorplan_name])
+
+    return new_max_labels
+
 
 def group_outputs(outputs):
     """
@@ -646,6 +670,8 @@ if __name__ == "__main__":
         # all_avg_floorplan_results.append(one_test.average_floorplan_data())
         # all_exploration_data.append(one_test.exploration_data)
         all_arrival_time_data.append(one_test.finish_time_data())
+
+    max_labels = compute_max_labels(all_tests)
 
     common_floorplan = all_tests[0].data.keys()
 
