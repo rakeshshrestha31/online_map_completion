@@ -65,7 +65,7 @@ def show_histogram():
 def show_t_score(null_algorithm='250_info'):
     skip_floorplans = ['50052755', '50057023', '50055642']
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
-
+    algorithms = list(all_arrival_time_data_dict.keys())
     for eval_metric in eval_metrics:
         t_test_data = {}
         for floorplan_name in floorplan_names:
@@ -87,7 +87,7 @@ def show_t_score(null_algorithm='250_info'):
                         continue
                     algorithm_data = all_arrival_time_data_dict[algorithm][eval_metric][floorplan_name][percentage]
 
-                    t, p = scipy.stats.ttest_ind(null_data, algorithm_data, equal_var=False)
+                    t, p = scipy.stats.ttest_ind(algorithm_data, null_data, equal_var=False)
                     # 2xp cuz two tailed analysis
                     if algorithm not in t_test_data[percentage]:
                         t_test_data[percentage][algorithm] = {}
@@ -114,7 +114,9 @@ def show_t_score(null_algorithm='250_info'):
 
         for percentage in t_test_data.keys():
             plt.clf()
-            for algorithm_idx, algorithm in enumerate(t_test_data[percentage].keys()):
+            for algorithm_idx, algorithm in enumerate(algorithms):
+                if algorithm not in t_test_data[percentage]:
+                    continue
                 y = []
                 for floorplan_name in sorted_floorplans_data.keys():
                     y.append(t_test_data[percentage][algorithm][floorplan_name]['t'])
@@ -124,7 +126,7 @@ def show_t_score(null_algorithm='250_info'):
                 plt.xticks(x, list(sorted_floorplans_data.keys()))
 
             # 90% interval: 1.734, 95%: -2.1
-            plt.axhline(y=-1.734, linestyle='dotted')
+            plt.axhline(y=1.734, linestyle='dotted')
             plt.xlabel('floor plans')
             plt.ylabel(eval_metric)
             plt.legend(loc='lower right')
