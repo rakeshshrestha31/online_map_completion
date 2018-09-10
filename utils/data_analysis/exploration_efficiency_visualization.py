@@ -13,6 +13,7 @@ from multiprocessing import Pool
 
 # custom import
 import utils.constants as const
+from utils.data_analysis.percentage_coverage_evaluator import PercentageCoverageEvaluator
 
 PERCENT_AREA_LABEL = "PercentExploredArea"
 AREA_LABEL = "ExploredArea"
@@ -144,10 +145,14 @@ class InfoDataset:
         self.repeat_times = repeat_times
         self.original_dataset_dir = original_dataset_dir
         self.ground_truth_data = {}
+        # floorplan wise max for all the labels
         self.update_ground_truth_data()
         self.load(directory, repeat_times)
 
         self.exploration_data = self.aggregate_exploration_data()
+        self.max_labels = self.update_max()
+        self.finish_times = self.finish_time_data()
+
 
     def load(self, directory, repeat_times):
         for floorplan_name in os.listdir(directory):
@@ -293,6 +298,25 @@ class InfoDataset:
                             percentage_evaluator.evaluate_percent_coverage(percentage)
                         )
         return outputs
+
+    def update_max(self):
+        common_floorplan_names = self.exploration_data.keys()
+        max_labels = {
+            label: {
+                floorplan_name: float('-inf')
+            } for floorplan_name in common_floorplan_names
+            for label in ALL_LABELS
+        }
+
+        for floorplan_name in common_floorplan_names:
+            for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
+                if self.exploration_data[floorplan_name][one_run_idx] is None:
+                    continue
+                for label in self.exploration_data[floorplan_name][one_run_idx]:
+                    x = self.exploration_data[floorplan_name][one_run_idx][label]
+                    max_labels[label][floorplan_name] = max(x[-1], max_labels[label][floorplan_name])
+
+        return max_labels
 
     # deprecated!!!
     def average_dataset(self):
@@ -565,37 +589,6 @@ def extend_ticks(x_ticks, x_ticks_labels, new_ticks):
 
     return x_ticks, x_ticks_labels
 
-
-class PercentageCoverageEvaluator:
-    """
-    evaluates percentage coverage for series of percentage given in increasing order
-    """
-    def __init__(self, x, y):
-        """
-        @param x x-labels
-        @param y y-lables (should be in percentage (<100)) in increasing order
-        """
-        self.x = x
-        self.y = y
-
-        self.last_idx = 0
-
-    def evaluate_percent_coverage(self, percent):
-        """
-        @param percent (successive calls should give percent in increasing order
-        @return x value that achieves given percentage of y
-        """
-        # TODO: check is percent greater than the last time
-
-        if percent > self.y[-1]:
-            idx = -1
-            # return -1
-        else:
-            idx = np.argmax(self.y[self.last_idx:] > percent)
-            idx += self.last_idx
-
-        self.last_idx = idx
-        return self.x[idx]
 
 def compare_outputs(output1, output2):
     "compares the dictionary outputs for sorting"
