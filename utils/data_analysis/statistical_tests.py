@@ -92,13 +92,15 @@ def show_t_score(null_algorithm='250_info'):
     :param null_algorithm:
     :return:
     """
-    plt.rcParams["figure.figsize"] = (16, 12)
+    plt.rcParams["figure.figsize"] = (24, 8)
+    plt.rcParams["savefig.dpi"] = 120
 
     percentages = ['75', '85', '95', '100']
-
     skip_floorplans = ['50052755', '50057023', '50055642']
+
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
     algorithms = list(all_arrival_time_data_dict.keys())
+
     for eval_metric in eval_metrics:
         x_label_alias, _ = exploration_efficiency_visualization.getXYLabel(eval_metric)
         t_test_data = {}
@@ -159,9 +161,9 @@ def show_t_score(null_algorithm='250_info'):
 
                 plt.xlabel('floor plans')
                 plt.ylabel(test_type + ' score for ' + x_label_alias)
-                # plt.legend(loc='lower right')
+                plt.legend(loc='lower right')
                 plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
-                plt.title(plot_title)
+                # plt.title(plot_title)
                 plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
                 plt.savefig(os.path.join('/tmp/', plot_title + '.eps'))
                 # plt.show()
@@ -206,7 +208,7 @@ def show_t_score(null_algorithm='250_info'):
                 plt.legend(loc='lower right')
 
                 plot_title = "{}_{}_{}".format(average+'test', percentage, x_label_alias)
-                plt.title(plot_title)
+                # plt.title(plot_title)
                 plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
                 plt.savefig(os.path.join('/tmp/', plot_title + '.eps'))
 
