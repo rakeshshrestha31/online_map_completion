@@ -132,6 +132,12 @@ def aggregate_one_explore_data(one_explore_data, total_area=100.0):
     aggregation[SIM_TIME_LABEL] = sim_time_cost
     aggregation[SYS_TIME_LABEL] = sys_time_cost
 
+    downsampling = 5
+    aggregation = {
+        label: aggregation[label][::downsampling]
+        for label in aggregation.keys()
+    }
+
     return aggregation
 
 class InfoDataset:
@@ -487,6 +493,20 @@ def compute_max_labels(all_tests):
 
     return new_max_labels
 
+def renormalize_coverage(all_tests, max_labels):
+    """
+    renormalize percentage area coverage based on max coverable area
+    :param all_tests:
+    :return:
+    """
+    for test in all_tests:
+        for floorplan in test.exploration_data.keys():
+            for one_run_idx, one_run_data in enumerate(test.exploration_data[floorplan]):
+                if test.exploration_data[floorplan][one_run_idx] is None:
+                    continue
+                test.exploration_data[floorplan][one_run_idx][PERCENT_AREA_LABEL] = \
+                    [i * 100.0 / max_labels[AREA_LABEL][floorplan] for i in test.exploration_data[floorplan][one_run_idx][AREA_LABEL]]
+
 
 def group_outputs(outputs):
     """
@@ -669,9 +689,13 @@ if __name__ == "__main__":
         all_tests.append(one_test)
         # all_avg_floorplan_results.append(one_test.average_floorplan_data())
         # all_exploration_data.append(one_test.exploration_data)
-        all_arrival_time_data.append(one_test.finish_time_data())
+
 
     max_labels = compute_max_labels(all_tests)
+    renormalize_coverage(all_tests, max_labels)
+
+    for one_test in all_tests:
+        all_arrival_time_data.append(one_test.finish_time_data())
 
     common_floorplan = all_tests[0].data.keys()
 
