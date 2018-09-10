@@ -634,25 +634,25 @@ if __name__ == "__main__":
     all_exploration_data = []
     all_arrival_time_data = []
 
-    p = Pool(args.num_workers)
+    # p = Pool(args.num_workers)
 
-    all_tests = p.map(
-        parse_directory,
-        directories
-    )
-    # all_tests = map(parse_directory, directories)
+    # all_tests = p.map(
+    #     parse_directory,
+    #     directories
+    # )
+    # # all_tests = map(parse_directory, directories)
 
-    for one_test in all_tests:
-        # all_avg_floorplan_results.append(one_test.average_floorplan_data())
-        # all_exploration_data.append(one_test.exploration_data)
-        all_arrival_time_data.append(one_test.finish_time_data())
-
-    # for directory in directories:
-    #     one_test = InfoDataset(directory, repeat, original_dataset_dir)
-    #     all_tests.append(one_test)
+    # for one_test in all_tests:
     #     # all_avg_floorplan_results.append(one_test.average_floorplan_data())
     #     # all_exploration_data.append(one_test.exploration_data)
     #     all_arrival_time_data.append(one_test.finish_time_data())
+
+    for directory in directories:
+        one_test = InfoDataset(directory, repeat, original_dataset_dir)
+        all_tests.append(one_test)
+        # all_avg_floorplan_results.append(one_test.average_floorplan_data())
+        # all_exploration_data.append(one_test.exploration_data)
+        all_arrival_time_data.append(one_test.finish_time_data())
 
     common_floorplan = all_tests[0].data.keys()
 
