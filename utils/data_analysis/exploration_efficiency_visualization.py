@@ -277,10 +277,11 @@ class InfoDataset:
     def finish_time_data(self, output_labels=[SIM_TIME_LABEL, TRAJECTORY_LABEL]):
         common_floorplan_names = self.exploration_data.keys()
 
+        percentages = [75, 80, 85, 87.5, 90, 92.5, 95, 97.5, 99, 100]
         outputs = {
             label: {
                 floorplan_name: OrderedDict([
-                    (75, []), (80, []), (85, []), (90, []), (95, []), (100, [])
+                    (percent, []) for percent in percentages
                 ])
                 for floorplan_name in common_floorplan_names
             }
@@ -426,7 +427,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
         
         alpha = 0.25 # 0.5
-        # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
+        plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
         # plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha, color=COLORS[idx])
 
         plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
@@ -457,7 +458,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     x_label, y_label = getXYLabel(data_type)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    # plt.legend(loc='lower right')
+    plt.legend(loc='lower right')
     plt.title("{}".format(floorplan_name))
 
     # show the maxes too
