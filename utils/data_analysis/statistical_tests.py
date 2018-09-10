@@ -48,7 +48,7 @@ def show_histogram():
                     # ))
 
 
-                plot_name = '{}_{}_{}'.format(floorplan_name, percentage, eval_metric)
+                plot_name = '{}_{}_{}'.format(floorplan_name, percentage, x_label_alias)
                 plt.title('hist_'+plot_name)
                 plt.xlabel(str(percentage) + "% area coverage time")
                 plt.ylabel('probability')
@@ -58,15 +58,17 @@ def show_histogram():
 
                 plt.legend(loc='lower right')
                 plt.title("{}".format(plot_name))
-                plt.savefig('/tmp/{}_{}_{}_{}.png'.format(floorplan_name, algorithm, percentage, eval_metric))
-                plt.savefig('/tmp/{}_{}_{}_{}.eps'.format(floorplan_name, algorithm, percentage, eval_metric))
+                plt.savefig('/tmp/{}_{}_{}_{}.png'.format(floorplan_name, algorithm, percentage, x_label_alias))
+                plt.savefig('/tmp/{}_{}_{}_{}.eps'.format(floorplan_name, algorithm, percentage, x_label_alias))
                 # plt.show()
 
-def show_t_score(null_algorithm='250_info'):
+
+def show_t_score(test_type='t', null_algorithm='250_info'):
     skip_floorplans = ['50052755', '50057023', '50055642']
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
     algorithms = list(all_arrival_time_data_dict.keys())
     for eval_metric in eval_metrics:
+        x_label_alias, _ = exploration_efficiency_visualization.getXYLabel(eval_metric)
         t_test_data = {}
         for floorplan_name in floorplan_names:
             if floorplan_name in skip_floorplans:
@@ -99,7 +101,7 @@ def show_t_score(null_algorithm='250_info'):
             for floorplan_name in floorplan_names:
                 algorithms_data = []
                 for algorithm in t_test_data[percentage].keys():
-                    algorithms_data.append((algorithm, t_test_data[percentage][algorithm][floorplan_name]['t']))
+                    algorithms_data.append((algorithm, t_test_data[percentage][algorithm][floorplan_name][test_type]))
                 algorithms_data = OrderedDict(algorithms_data)
                 floorplans_data.append((floorplan_name, algorithms_data))
             floorplans_data = OrderedDict(floorplans_data)
@@ -112,50 +114,37 @@ def show_t_score(null_algorithm='250_info'):
         sorted_floorplans_data = OrderedDict(sorted(avg_flooplans_data, key=lambda x: x[1]))
         print(sorted_floorplans_data)
 
-        for percentage in t_test_data.keys():
+        for percentage in sorted(t_test_data.keys()):
             plt.clf()
             for algorithm_idx, algorithm in enumerate(algorithms):
                 if algorithm not in t_test_data[percentage]:
                     continue
                 y = []
                 for floorplan_name in sorted_floorplans_data.keys():
-                    y.append(t_test_data[percentage][algorithm][floorplan_name]['t'])
+                    y.append(t_test_data[percentage][algorithm][floorplan_name][test_type])
                 x = list(range(len(y)))
                 plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
                 plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
                 plt.xticks(x, list(sorted_floorplans_data.keys()))
 
-            # 90% interval: 1.734, 95%: -2.1
-            plt.axhline(y=1.734, linestyle='dotted')
+            # 90% interval: 1.734, 95%: 2.1
+            # confidence_interval = 1.734 if test_type == 't' else 0.1
+            confidence_interval = 2.1 if test_type == 't' else 0.05
+            plt.axhline(y=confidence_interval, linestyle='dotted')
+
             plt.xlabel('floor plans')
-            plt.ylabel(eval_metric)
+            plt.ylabel(test_type + ' score for ' + x_label_alias)
             plt.legend(loc='lower right')
             plt.title("{}".format(percentage + '_' + eval_metric))
             plt.show()
-
-
-            # x = list(range(len(data)))
-            # y = list(data.values())
-            # x_ticks_label = list(data.keys())
-            #
-            # x_label, y_label = getXYLabel(type)
-            # plt.xlabel("floor plans")
-            # plt.ylabel(metric)
-            # plt.plot(x, y, label=label, color=COLORS[idx])
-            # plt.scatter(x, y, color=COLORS[idx])
-            # plt.legend(loc='lower right')
-            # # plt.title("{}".format(floorplan_name))
-            #
-            # plt.xticks(x, x_ticks_label)
-
-
-
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate Cached Exploration Results')
     parser.add_argument('cached_arrival_time_data', type=str, metavar='S',
                         help='cached arrival time data (json file)')
+    parser.add_argument('--test-type', type=str, metavar='S',
+                        help='t-test to use (t | p)')
     args = parser.parse_args()
     with open(args.cached_arrival_time_data, 'r') as f:
         all_arrival_time_data_dict = json.load(f, object_pairs_hook=OrderedDict)
@@ -182,5 +171,5 @@ if __name__ == '__main__':
     )
 
     # show_histogram()
-    show_t_score()
+    show_t_score(args.test_type)
 
