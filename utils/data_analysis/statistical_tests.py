@@ -85,8 +85,16 @@ def sort_floorplan(test_data, floorplan_names, test_type):
     return sorted_floorplans_data
 
 
-def show_t_score(test_type='t', null_algorithm='250_info'):
+def show_t_score(null_algorithm='250_info'):
+    """
+    based on https://towardsdatascience.com/inferential-statistics-series-t-test-using-numpy-2718f8f9bf2f
+    :param test_type:
+    :param null_algorithm:
+    :return:
+    """
     plt.rcParams["figure.figsize"] = (16, 12)
+
+    percentages = ['75', '85', '95', '100']
 
     skip_floorplans = ['50052755', '50057023', '50055642']
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
@@ -98,8 +106,8 @@ def show_t_score(test_type='t', null_algorithm='250_info'):
             if floorplan_name in skip_floorplans:
                 continue
             for percentage in percentages:
-                if float(percentage) > 95:
-                    continue
+                # if float(percentage) > 95:
+                #     continue
 
                 if percentage not in t_test_data:
                     t_test_data[percentage] = {}
@@ -116,52 +124,98 @@ def show_t_score(test_type='t', null_algorithm='250_info'):
                     # 2xp cuz two tailed analysis
                     if algorithm not in t_test_data[percentage]:
                         t_test_data[percentage][algorithm] = {}
-
+                    Q3 = np.percentile(algorithm_data, 75)
+                    Q1 = np.percentile(algorithm_data, 25)
                     t_test_data[percentage][algorithm][floorplan_name] = {
                         't': t,
                         'p': 2 * p,
                         'mean': np.mean(algorithm_data),
                         'median':  np.median(algorithm_data),
                         'stddev': np.std(algorithm_data),
-                        'QD': np.percentile(algorithm_data, 75) - np.percentile(algorithm_data, 25)
+                        'Q1': Q1,
+                        'Q3': Q3
                     }
 
-        sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, test_type)
+        sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'mean') #test_type)
 
+        for test_type in ['p', 't']:
+            for percentage in sorted(t_test_data.keys()):
+                plt.clf()
+                for algorithm_idx, algorithm in enumerate(algorithms):
+                    if algorithm not in t_test_data[percentage] or algorithm == null_algorithm:
+                        continue
+                    y = []
+                    for floorplan_name in sorted_floorplans_data.keys():
+                        y.append(t_test_data[percentage][algorithm][floorplan_name][test_type])
+                    x = list(range(len(y)))
+                    plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.xticks(x, list(sorted_floorplans_data.keys()))
+
+                # 90% interval: 1.734, 95%: 2.1
+                # confidence_interval = 1.734 if test_type == 't' else 0.1
+                confidence_interval = 2.1 if test_type == 't' else 0.05
+                plt.axhline(y=confidence_interval, linestyle='dotted')
+
+                plt.xlabel('floor plans')
+                plt.ylabel(test_type + ' score for ' + x_label_alias)
+                # plt.legend(loc='lower right')
+                plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
+                plt.title(plot_title)
+                plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
+                plt.savefig(os.path.join('/tmp/', plot_title + '.eps'))
+                # plt.show()
+
+
+        # plot the mean and stddevs
         for percentage in sorted(t_test_data.keys()):
-            plt.clf()
-            for algorithm_idx, algorithm in enumerate(algorithms):
-                if algorithm not in t_test_data[percentage] or algorithm == null_algorithm:
-                    continue
-                y = []
-                for floorplan_name in sorted_floorplans_data.keys():
-                    y.append(t_test_data[percentage][algorithm][floorplan_name][test_type])
-                x = list(range(len(y)))
-                plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+            for average in ['mean', 'stddev']:
+                plt.clf()
+                for algorithm_idx, algorithm in enumerate(algorithms):
+                    stats = ['mean', 'stddev'] if average == 'mean' else ['median', 'Q1', 'Q3']
+
+                    algorithm_stats = {
+                        i: [] for i in stats
+                    }
+                    for floorplan_name in sorted_floorplans_data.keys():
+                        for stat in stats:
+                            algorithm_stats[stat].append(t_test_data[percentage][algorithm][floorplan_name][stat])
+
+                        if average == 'mean':
+                            y = algorithm_stats['mean']
+                            error = algorithm_stats['stddev']
+                        else:
+                            average = 'median'
+                            y = algorithm_stats['median']
+                            error_hi = np.asarray(algorithm_stats['Q3']) - np.asarray(algorithm_stats['median'])
+                            error_low = np.asarray(algorithm_stats['median']) - np.asarray(algorithm_stats['Q1'])
+                            error = np.stack((error_low, error_hi))
+
+                        x = list(range(len(y)))
+
+                    plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.errorbar(x, y, yerr=error,
+                                 color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7,
+                                 capsize=20, elinewidth=3)
+
                 plt.xticks(x, list(sorted_floorplans_data.keys()))
+                plt.xlabel('floor plans')
+                plt.ylabel(average + ' ' + x_label_alias)
 
-            # 90% interval: 1.734, 95%: 2.1
-            # confidence_interval = 1.734 if test_type == 't' else 0.1
-            confidence_interval = 2.1 if test_type == 't' else 0.05
-            plt.axhline(y=confidence_interval, linestyle='dotted')
+                plt.legend(loc='lower right')
 
-            plt.xlabel('floor plans')
-            plt.ylabel(test_type + ' score for ' + x_label_alias)
-            # plt.legend(loc='lower right')
-            plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
-            plt.title(plot_title)
-            plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
-            plt.savefig(os.path.join('/tmp/', plot_title + '.eps'))
-            # plt.show()
+                plot_title = "{}_{}_{}".format(average+'test', percentage, x_label_alias)
+                plt.title(plot_title)
+                plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
+                plt.savefig(os.path.join('/tmp/', plot_title + '.eps'))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate Cached Exploration Results')
     parser.add_argument('cached_arrival_time_data', type=str, metavar='S',
                         help='cached arrival time data (json file)')
-    parser.add_argument('--test-type', type=str, metavar='S',
-                        help='t-test to use (t | p)')
+
     args = parser.parse_args()
     with open(args.cached_arrival_time_data, 'r') as f:
         all_arrival_time_data_dict = json.load(f, object_pairs_hook=OrderedDict)
@@ -188,5 +242,5 @@ if __name__ == '__main__':
     )
 
     # show_histogram()
-    show_t_score(args.test_type)
+    show_t_score()
 
