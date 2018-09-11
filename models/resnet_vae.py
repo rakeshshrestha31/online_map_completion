@@ -129,9 +129,10 @@ class ResnetVAE(nn.Module):
         import random
         import time
         import numpy as np
+        import json
 
         num_tests = 1000
-        batch_range = (1, 20)
+        batch_range = (1, 50)
         test_results = {i:[] for i in range(batch_range[0], batch_range[1]+1)}
 
         for i in range(num_tests):
@@ -150,16 +151,15 @@ class ResnetVAE(nn.Module):
 
             print('test: {}/{}, batch_size: {}, time: {}'.format(i, num_tests, batch_size, test_time))
 
+        with open('/tmp/network_running_time.json', 'w') as f:
+            json.dump(test_results, f)
+
         all_results = []
         for batch_size in test_results.keys():
             all_results.extend(test_results[batch_size])
             print(batch_size, np.mean(test_results[batch_size]), np.std(test_results[batch_size]))
 
         print('all', np.mean(all_results), np.std(all_results))
-
-
-
-
 
 if __name__ == '__main__':
     import torch
