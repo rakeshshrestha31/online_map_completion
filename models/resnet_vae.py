@@ -125,6 +125,42 @@ class ResnetVAE(nn.Module):
         eps = Variable(std.data.new(std.size()).normal_())
         return eps.mul(std).add_(mu)
 
+    def test_running_time(self):
+        import random
+        import time
+        import numpy as np
+
+        num_tests = 1000
+        batch_range = (1, 20)
+        test_results = {i:[] for i in range(batch_range[0], batch_range[1]+1)}
+
+        for i in range(num_tests):
+            batch_size = random.randint(*batch_range)
+            input_size = (utils.constants.TARGET_HEIGHT, utils.constants.TARGET_WIDTH)
+            input = Variable(torch.empty(batch_size, 4, *input_size).uniform_(0, 1))
+            if next(self.parameters()).is_cuda:
+                input = input.cuda()
+            else:
+                input = input.cpu()
+            tic = time.time()
+            self(input)
+            toc = time.time()
+            test_time = toc - tic
+            test_results[batch_size].append(test_time)
+
+            print('test: {}/{}, batch_size: {}, time: {}'.format(i, num_tests, batch_size, test_time))
+
+        all_results = []
+        for batch_size in test_results.keys():
+            all_results.extend(test_results[batch_size])
+            print(batch_size, np.mean(test_results[batch_size]), np.std(test_results[batch_size]))
+
+        print('all', np.mean(all_results), np.std(all_results))
+
+
+
+
+
 if __name__ == '__main__':
     import torch
     from torch.autograd import Variable
@@ -147,6 +183,11 @@ if __name__ == '__main__':
         },
         'resnet18', 'resnet34', 'resnet50'
     ] # , 'resnet101', 'resnet152']
+
+    # running time test
+    model = ResnetVAE(models[0], latent_channels, 'concat')
+    model = model.cuda()
+    model.test_running_time()
 
     for model_name in models:
         print('model', model_name)
