@@ -168,6 +168,12 @@ if __name__ == '__main__':
                 output, mu, logvariance = model(input)
                 print('output: ', output.size())
 
+                for layer in ['layer1', 'layer2', 'layer3', 'layer4']:
+                    print('encoder', layer, model.encoder.layer_outputs[layer].size())
+                    print('decoder', layer, model.decoder.layer_outputs[layer].size())
+
+                print('mu', mu.size())
+
                 dot = make_dot(output)
                 dot.render("/tmp/model", '.')
                 print('\n\n')
