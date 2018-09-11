@@ -85,6 +85,46 @@ def sort_floorplan(test_data, floorplan_names, test_type):
     return sorted_floorplans_data
 
 
+def filter_t_test_data(t_test_data, max_size, null_algorithm='250_info'):
+    """
+    filters the data to be the same size for all algorithms
+    :param t_test_data:
+    :return: updated t_test data
+    """
+    for percentage in sorted(t_test_data.keys()):
+        for algorithm_idx, algorithm in enumerate(t_test_data[percentage].keys()):
+            if algorithm not in t_test_data[percentage] or algorithm == null_algorithm:
+                continue
+            y = []
+            for floorplan_name in t_test_data[percentage][algorithm].keys():
+                # use the best tests from all the algorithms
+                t_test_data[percentage][null_algorithm][floorplan_name]['data'].sort()
+                null_data = t_test_data[percentage][null_algorithm][floorplan_name]['data'] \
+                    = t_test_data[percentage][null_algorithm][floorplan_name]['data'][:max_size]
+
+                t_test_data[percentage][algorithm][floorplan_name]['data'].sort()
+                algorithm_data = t_test_data[percentage][algorithm][floorplan_name]['data'] \
+                    = t_test_data[percentage][algorithm][floorplan_name]['data'][:max_size]
+
+                t, p = scipy.stats.ttest_ind(algorithm_data, null_data, equal_var=False)
+                # 2xp cuz two tailed analysis
+                if algorithm not in t_test_data[percentage]:
+                    t_test_data[percentage][algorithm] = {}
+                Q3 = np.percentile(algorithm_data, 75)
+                Q1 = np.percentile(algorithm_data, 25)
+
+                t_test_data[percentage][algorithm][floorplan_name] = {
+                    't': t,
+                    'p': 2 * p,
+                    'mean': np.mean(algorithm_data),
+                    'median': np.median(algorithm_data),
+                    'stddev': np.std(algorithm_data),
+                    'Q1': Q1,
+                    'Q3': Q3,
+                    'data': algorithm_data
+                }
+    return t_test_data
+
 def show_t_score(null_algorithm='250_info'):
     """
     based on https://towardsdatascience.com/inferential-statistics-series-t-test-using-numpy-2718f8f9bf2f
@@ -95,6 +135,12 @@ def show_t_score(null_algorithm='250_info'):
     plt.rcParams["figure.figsize"] = (24, 8)
     plt.rcParams["savefig.dpi"] = 120
 
+    t_confidence_map = {
+        16: 2.12,
+        18: 2.101,
+        20: 2.086,
+    }
+
     percentages = ['75', '85', '95', '100']
     skip_floorplans = ['50052755', '50057023', '50055642']
 
@@ -104,6 +150,7 @@ def show_t_score(null_algorithm='250_info'):
     for eval_metric in eval_metrics:
         x_label_alias, _ = exploration_efficiency_visualization.getXYLabel(eval_metric)
         t_test_data = {}
+        min_expts = float('inf')
         for floorplan_name in floorplan_names:
             if floorplan_name in skip_floorplans:
                 continue
@@ -121,6 +168,7 @@ def show_t_score(null_algorithm='250_info'):
                     # if algorithm == null_algorithm:
                     #     continue
                     algorithm_data = all_arrival_time_data_dict[algorithm][eval_metric][floorplan_name][percentage]
+                    min_expts = min(min_expts, len(algorithm_data))
 
                     t, p = scipy.stats.ttest_ind(algorithm_data, null_data, equal_var=False)
                     # 2xp cuz two tailed analysis
@@ -135,8 +183,14 @@ def show_t_score(null_algorithm='250_info'):
                         'median':  np.median(algorithm_data),
                         'stddev': np.std(algorithm_data),
                         'Q1': Q1,
-                        'Q3': Q3
+                        'Q3': Q3,
+                        'data': algorithm_data
                     }
+
+        print('min experiments:', min_expts)
+        filter_t_test_data(t_test_data, min_expts, null_algorithm)
+        degrees_of_freedom = 2 * min_expts - 2
+        critical_t = t_confidence_map[degrees_of_freedom]
 
         sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'mean') #test_type)
 
@@ -156,7 +210,7 @@ def show_t_score(null_algorithm='250_info'):
 
                 # 90% interval: 1.734, 95%: 2.1
                 # confidence_interval = 1.734 if test_type == 't' else 0.1
-                confidence_interval = 2.1 if test_type == 't' else 0.05
+                confidence_interval = critical_t if test_type == 't' else 0.05
                 plt.axhline(y=confidence_interval, linestyle='dotted')
 
                 plt.xlabel('floor plans')
