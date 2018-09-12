@@ -16,6 +16,7 @@ import time
 # custom import
 import utils.constants as const
 from utils.data_analysis.percentage_coverage_evaluator import PercentageCoverageEvaluator
+import utils.data_analysis.constants as analysis_const
 
 PERCENT_AREA_LABEL = "PercentExploredArea"
 AREA_LABEL = "ExploredArea"
@@ -92,6 +93,11 @@ def read_one_exploration(directory):
     regex = re.compile(r'.*info(\d+).json')
     file_indices = np.uint([re.search(regex, info_file).group(1) for info_file in info_files])
     max_index = np.max(file_indices)
+
+    # check validity
+    if max_index < analysis_const.MIN_PLANNING_PER_EXPLORATION:
+        return None
+
     # TODO: remove
     # max_index = min(10, max_index)
 
@@ -189,7 +195,8 @@ class InfoDataset:
             for num in range(repeat_times):
                 repeat_dir = os.path.join(floorplan_dir, str(num + 1))
                 if os.path.exists(repeat_dir):
-                    self.data[floorplan_name]['repeat_runs_data'].append(read_one_exploration(repeat_dir))
+                    one_data = read_one_exploration(repeat_dir)
+                    self.data[floorplan_name]['repeat_runs_data'].append(one_data)
                 else:
                     print('[ERROR] directory not found {}'.format(repeat_dir))
                     self.data[floorplan_name]['repeat_runs_data'].append(None)
@@ -340,9 +347,11 @@ class InfoDataset:
                     percentage_evaluator = PercentageCoverageEvaluator(x_array, y_array)
 
                     for percentage in self.finish_times[x_label][floorplan_name].keys():
-                        self.finish_times[x_label][floorplan_name][percentage].append(
-                            percentage_evaluator.evaluate_percent_coverage(percentage)
-                        )
+                        finish_time = percentage_evaluator.evaluate_percent_coverage(percentage)
+                        if finish_time > 0:
+                            self.finish_times[x_label][floorplan_name][percentage].append(
+                                finish_time
+                            )
                 # sort the percentage to ordered dicts
                 self.finish_times[x_label][floorplan_name] = OrderedDict(list(
                     sorted(self.finish_times[x_label][floorplan_name].items(), key=lambda x: x[0])
@@ -554,6 +563,10 @@ def renormalize_coverage(all_tests, max_labels):
                     continue
                 test.exploration_data[floorplan][one_run_idx][PERCENT_AREA_LABEL] = \
                     [i * 100.0 / max_labels[AREA_LABEL][floorplan] for i in test.exploration_data[floorplan][one_run_idx][AREA_LABEL]]
+
+                # validate coverage
+                if test.exploration_data[floorplan][one_run_idx][PERCENT_AREA_LABEL][-1] < analysis_const.MIN_PERCENTAGE_COVERAGE:
+                    test.exploration_data[floorplan][one_run_idx] = None
 
 
 def group_outputs(outputs):

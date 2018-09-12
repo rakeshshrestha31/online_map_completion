@@ -26,8 +26,8 @@ class PercentageCoverageEvaluator:
             self.last_idx = 0
 
         if percent >= self.y[-1]:
-            idx = -1
-            # return -1
+            # idx = -1
+            return -1
         else:
             idx = self.last_idx + np.argmax(self.y[self.last_idx:] >= percent)
 
