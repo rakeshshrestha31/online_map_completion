@@ -10,6 +10,8 @@ import argparse
 from collections import OrderedDict
 import copy
 from multiprocessing import Pool
+import gc # garbage collector
+import time
 
 # custom import
 import utils.constants as const
@@ -31,6 +33,13 @@ BIN_INTERVELS = [const.TRAJECTORY_BIN_INTERVAL, const.SIM_TIME_BIN_INTERVAL, con
 
 ALL_LABELS = [PERCENT_AREA_LABEL, AREA_LABEL, TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
 
+
+def STD_LOG(log):
+    print('[LOG]', time.time(), log)
+
+
+def STD_ERR(log):
+    print('[ERR]', time.time(), log)
 
 def poses_to_step_length(poses):
     # push 0 for the first one
@@ -144,20 +153,26 @@ class InfoDataset:
     # static member to hold ground truth data (so that we don't parse it again and again)
     ground_truth_data = {}
 
-    def __init__(self, directory, repeat_times, original_dataset_dir):
+    def __init__(self, directory, repeat_times, original_dataset_dir, label=''):
         print('parsing directory {}'.format(directory))
+        self.label = label
         self.data = dict()
         self.directory = directory
         self.repeat_times = repeat_times
         self.original_dataset_dir = original_dataset_dir
         self.ground_truth_data = {}
+        self.exploration_data = None
+        self.max_labels = {label: {} for label in ALL_LABELS}
+        self.finish_times = {}
+
         # floorplan wise max for all the labels
         self.update_ground_truth_data()
         self.load(directory, repeat_times)
 
-        self.exploration_data = self.aggregate_exploration_data()
-        self.max_labels = self.update_max()
-        self.finish_times = self.finish_time_data()
+        self.aggregate_exploration_data()
+        # now done for each file separately
+        # self.update_max() 
+        # self.finish_time_data()
 
 
     def load(self, directory, repeat_times):
@@ -200,17 +215,33 @@ class InfoDataset:
 
     def aggregate_exploration_data(self):
         floorplan_names = self.data.keys()
-        exploration_data = dict()
+        self.exploration_data = dict()
         for floorplan_name in floorplan_names:
             floorplan_data = self.data[floorplan_name]['repeat_runs_data']
-            exploration_data[floorplan_name] = []
+            self.exploration_data[floorplan_name] = []
             for t in range(self.repeat_times):
                 if floorplan_data[t] is None:
-                    exploration_data[floorplan_name].append(None)
+                    self.exploration_data[floorplan_name].append(None)
                 else:
                     one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.data[floorplan_name]['area'])
-                    exploration_data[floorplan_name].append(one_exploration_data)
-        return exploration_data
+                    self.exploration_data[floorplan_name].append(one_exploration_data)
+            
+            # update for all runs
+            self.update_max()
+            self.update_finish_time_data()
+            filename = '{},{}.json'.format(self.label, floorplan_name)
+            STD_LOG('writing for {}'.format(filename)) 
+            with open(os.path.join(args.logdir, filename), 'w') as f:
+                json.dump(self.exploration_data[floorplan_name], f, indent=4)
+                self.exploration_data[floorplan_name] = filename
+            
+        with open(os.path.join(args.logdir, '{},max_labels.json'.format(self.label)), 'w') as f:
+            json.dump(self.max_labels, f, indent=4)
+        
+        with open(os.path.join(args.logdir, '{},finish_times.json'.format(self.label)), 'w') as f:
+            print(self.finish_times)
+            json.dump(self.finish_times, f, indent=4)
+
 
     def average_floorplan_data(self):
         """
@@ -274,22 +305,27 @@ class InfoDataset:
 
         return average_data
 
-    def finish_time_data(self, output_labels=[SIM_TIME_LABEL, TRAJECTORY_LABEL]):
+    def update_finish_time_data(self, output_labels=[SIM_TIME_LABEL, TRAJECTORY_LABEL]):
         common_floorplan_names = self.exploration_data.keys()
 
         percentages = [75, 80, 85, 87.5, 90, 92.5, 95, 97.5, 99, 100]
-        outputs = {
-            label: {
-                floorplan_name: OrderedDict([
-                    (percent, []) for percent in percentages
-                ])
-                for floorplan_name in common_floorplan_names
-            }
-            for label in output_labels
-        }
-
+        
+        for label in output_labels:
+            if label not in self.finish_times:
+                self.finish_times[label] = {}
+        
         for x_label in output_labels:
             for floorplan_name in common_floorplan_names:
+                  
+                if type(self.exploration_data[floorplan_name]) == str:
+                    STD_ERR('exploration data for ' + floorplan_name + 'already cached')
+               
+                if floorplan_name not in self.finish_times[x_label]:
+                    self.finish_times[x_label][floorplan_name] = {
+                        percent: [] 
+                        for percent in percentages
+                    }
+                
                 for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
                     if self.exploration_data[floorplan_name][one_run_idx] is None:
                         continue
@@ -300,31 +336,36 @@ class InfoDataset:
                     y_array = np.asarray(y)
                     percentage_evaluator = PercentageCoverageEvaluator(x_array, y_array)
 
-                    for percentage in outputs[x_label][floorplan_name].keys():
-                        outputs[x_label][floorplan_name][percentage].append(
+                    for percentage in self.finish_times[x_label][floorplan_name].keys():
+                        self.finish_times[x_label][floorplan_name][percentage].append(
                             percentage_evaluator.evaluate_percent_coverage(percentage)
                         )
-        return outputs
+                # sort the percentage to ordered dicts
+                self.finish_times[x_label][floorplan_name] = OrderedDict(list(
+                    sorted(self.finish_times[x_label][floorplan_name].items(), key=lambda x: x[0])
+                ))
+
 
     def update_max(self):
         common_floorplan_names = self.exploration_data.keys()
-        max_labels = {
-            label: {
-                floorplan_name: float('-inf')
-                for floorplan_name in common_floorplan_names
-            }
-            for label in ALL_LABELS
-        }
 
         for floorplan_name in common_floorplan_names:
+            if floorplan_name in self.max_labels:
+                # already computed
+                continue
+
             for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
+                if type(self.exploration_data[floorplan_name]) == str:
+                    STD_ERR('exploration data for ' + floorplan_name + 'already cached')
+
                 if self.exploration_data[floorplan_name][one_run_idx] is None:
                     continue
                 for label in self.exploration_data[floorplan_name][one_run_idx]:
+                    if floorplan_name not in self.max_labels[label]:
+                        self.max_labels[label][floorplan_name] = float('-inf')
                     x = self.exploration_data[floorplan_name][one_run_idx][label]
-                    max_labels[label][floorplan_name] = max(x[-1], max_labels[label][floorplan_name])
+                    self.max_labels[label][floorplan_name] = max(x[-1], self.max_labels[label][floorplan_name])
 
-        return max_labels
 
     # deprecated!!!
     def average_dataset(self):
@@ -470,7 +511,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     plt.savefig('/tmp/{}_{}_{}.eps'.format(floorplan_name, data_type, "_".join(test_labels)))
     # plt.show()
 
-    return outputs
+    return output
 
 
 def compute_max_labels(all_tests):
@@ -642,9 +683,43 @@ def compare_outputs(output1, output2):
     else:
         return output1['label'] < output2['label']
 
+
 def parse_directory(directory):
     # nonlocal repeat, original_dataset_dir
     return InfoDataset(directory, repeat, original_dataset_dir)
+
+
+def parse_directories(directories):
+    all_tests = []
+    common_floorplans = set()
+    # keep index of each algorithm's each floorplan for later 
+    all_data_index = {}
+    for idx, directory in enumerate(directories):
+        one_test = InfoDataset(directory, repeat, original_dataset_dir, labels[idx])
+        all_tests.append(one_test)
+        all_data_index[labels[idx]] = list(one_test.data.keys())
+
+        for floorplan in one_test.data.keys():
+            common_floorplans.add(floorplan)
+
+        with open(os.path.join(args.logdir, 'common_floorplans.json'), 'w') as f:
+            json.dump(list(common_floorplans), f, indent=4)
+
+        gc.collect()
+        # all_tests.append(one_test)
+        # all_avg_floorplan_results.append(one_test.average_floorplan_data())
+        # all_exploration_data.append(one_test.exploration_data)
+    with open(os.path.join(args.logdir, 'all_data_index.json'), 'w') as f:
+        json.dump(all_data_index, f, indent=4)
+
+    return all_tests
+
+def parse_cached():
+    with open(os.path.join(args.logdir, 'all_data_index.json'), 'r') as f:
+        all_data_index = json.load(f)
+    for algorithm_idx, algorithm in enumerate(all_data_index.keys()):
+        for floorplan in all_data_index[algorithm]:
+            pass 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluate Exploration Results')
@@ -658,6 +733,8 @@ if __name__ == "__main__":
                         help='repeat times for each floorplan')
     parser.add_argument('--num_workers', type=int, default=1, metavar='N',
                         help='num processes to spawn')
+    parser.add_argument('--logdir', type=str, default='/tmp', metavar='S',
+                        help='directory of temporary files')
 
     args = parser.parse_args()
 
@@ -684,19 +761,15 @@ if __name__ == "__main__":
     #     # all_avg_floorplan_results.append(one_test.average_floorplan_data())
     #     # all_exploration_data.append(one_test.exploration_data)
     #     all_arrival_time_data.append(one_test.finish_time_data())
-
-    for directory in directories:
-        one_test = InfoDataset(directory, repeat, original_dataset_dir)
-        all_tests.append(one_test)
-        # all_avg_floorplan_results.append(one_test.average_floorplan_data())
-        # all_exploration_data.append(one_test.exploration_data)
-
+    
+    all_tests = parse_directories(directories)
+    parse_cached()
 
     max_labels = compute_max_labels(all_tests)
     renormalize_coverage(all_tests, max_labels)
 
     for one_test in all_tests:
-        all_arrival_time_data.append(one_test.finish_time_data())
+        all_arrival_time_data.append(one_test.finish_times)
 
     common_floorplan = all_tests[0].data.keys()
 
