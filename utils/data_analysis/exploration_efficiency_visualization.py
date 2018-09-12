@@ -206,6 +206,7 @@ class InfoDataset:
 
             # clear unnecessaries
             self.data[floorplan_name]['repeat_runs_data'] = None
+            gc.collect()
         
         with open(os.path.join(args.logdir, '{},max_labels.json'.format(self.label)), 'w') as f:
             json.dump(self.max_labels, f, indent=4)
@@ -513,7 +514,7 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
     plt.savefig('/tmp/{}_{}_{}.eps'.format(floorplan_name, data_type, "_".join(test_labels)))
     # plt.show()
 
-    return output
+    return outputs
 
 
 def compute_max_labels(all_tests):
@@ -748,6 +749,10 @@ if __name__ == "__main__":
     labels = args.result_labels
     repeat = args.repeat_times
 
+    assert (len(directories) == len(labels))
+    for directory in directories:
+        assert (os.path.isdir(directory))
+
     all_tests = []
     # all_explore_data = []
     all_avg_floorplan_results = []
@@ -777,6 +782,7 @@ if __name__ == "__main__":
 
     for one_test in all_tests:
         all_arrival_time_data.append(one_test.finish_times)
+        all_avg_floorplan_results.append(one_test.average_floorplan_data())
 
     common_floorplan = all_tests[0].data.keys()
 
@@ -802,10 +808,10 @@ if __name__ == "__main__":
     #     labels,
     #     [{floorplan: i.data[floorplan] for floorplan in common_floorplan} for i in all_tests]
     # ))
-    # all_avg_data_dict = OrderedDict(zip(
-    #     labels,
-    #     [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
-    # ))
+    all_avg_data_dict = OrderedDict(zip(
+        labels,
+        [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_avg_floorplan_results]
+    ))
     # all_exploration_data = OrderedDict(zip(
     #     labels,
     #     [{floorplan: i[floorplan] for floorplan in common_floorplan} for i in  all_exploration_data]
@@ -813,13 +819,13 @@ if __name__ == "__main__":
 
     # # with open('/tmp/all_data.json', 'w') as f:
     # #     json.dump(all_data_dict, f, indent=4)
-    # with open('/tmp/all_avg_data.json', 'w') as f:
-    #     json.dump(all_avg_data_dict, f, indent=4)
+    with open('/tmp/all_avg_data.json', 'w') as f:
+        json.dump(all_avg_data_dict, f, indent=4)
     # with open('/tmp/all_exploration_data.json', 'w') as f:
     #     json.dump(all_exploration_data, f, indent=4)
     with open('/tmp/all_arrival_time_data.json', 'w') as f:
         json.dump(all_arrival_time_data, f, indent=4)
-    exit(0)
+    # exit(0)
 
     outputs = []
     for floorplan in common_floorplan:
