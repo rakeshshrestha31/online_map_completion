@@ -161,7 +161,7 @@ class InfoDataset:
         self.repeat_times = repeat_times
         self.original_dataset_dir = original_dataset_dir
         self.ground_truth_data = {}
-        self.exploration_data = None
+        self.exploration_data = {} 
         self.max_labels = {label: {} for label in ALL_LABELS}
         self.finish_times = {}
 
@@ -169,10 +169,10 @@ class InfoDataset:
         self.update_ground_truth_data()
         self.load(directory, repeat_times)
 
-        self.aggregate_exploration_data()
         # now done for each file separately
-        # self.update_max() 
-        # self.finish_time_data()
+        # self.aggregate_exploration_data()
+        self.update_max() 
+        self.update_finish_time_data()
 
 
     def load(self, directory, repeat_times):
@@ -193,6 +193,25 @@ class InfoDataset:
                 else:
                     print('[ERROR] directory not found {}'.format(repeat_dir))
                     self.data[floorplan_name]['repeat_runs_data'].append(None)
+        
+            # update for all runs
+            self.aggregate_exploration_data(self.data[floorplan_name], floorplan_name)
+            # self.update_max()
+            # self.update_finish_time_data()
+            filename = '{},{}.json'.format(self.label, floorplan_name)
+            STD_LOG('writing for {}'.format(filename)) 
+            with open(os.path.join(args.logdir, filename), 'w') as f:
+                json.dump(self.exploration_data[floorplan_name], f, indent=4)
+                # self.exploration_data[floorplan_name] = filename
+
+            # clear unnecessaries
+            self.data[floorplan_name]['repeat_runs_data'] = None
+        
+        with open(os.path.join(args.logdir, '{},max_labels.json'.format(self.label)), 'w') as f:
+            json.dump(self.max_labels, f, indent=4)
+        
+        with open(os.path.join(args.logdir, '{},finish_times.json'.format(self.label)), 'w') as f:
+            json.dump(self.finish_times, f, indent=4)
     
     def update_ground_truth_data(self):
         from kth.FloorPlanGraph import FloorPlanGraph
@@ -213,33 +232,16 @@ class InfoDataset:
                         'dim': graph.get_real_size()
                     }
 
-    def aggregate_exploration_data(self):
-        floorplan_names = self.data.keys()
-        self.exploration_data = dict()
-        for floorplan_name in floorplan_names:
-            floorplan_data = self.data[floorplan_name]['repeat_runs_data']
-            self.exploration_data[floorplan_name] = []
-            for t in range(self.repeat_times):
-                if floorplan_data[t] is None:
-                    self.exploration_data[floorplan_name].append(None)
-                else:
-                    one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.data[floorplan_name]['area'])
-                    self.exploration_data[floorplan_name].append(one_exploration_data)
-            
-            # update for all runs
-            self.update_max()
-            self.update_finish_time_data()
-            filename = '{},{}.json'.format(self.label, floorplan_name)
-            STD_LOG('writing for {}'.format(filename)) 
-            with open(os.path.join(args.logdir, filename), 'w') as f:
-                json.dump(self.exploration_data[floorplan_name], f, indent=4)
-                self.exploration_data[floorplan_name] = filename
-            
-        with open(os.path.join(args.logdir, '{},max_labels.json'.format(self.label)), 'w') as f:
-            json.dump(self.max_labels, f, indent=4)
+    def aggregate_exploration_data(self, data, floorplan_name):
+        floorplan_data = self.data[floorplan_name]['repeat_runs_data']
+        self.exploration_data[floorplan_name] = []
+        for t in range(self.repeat_times):
+            if floorplan_data[t] is None:
+                self.exploration_data[floorplan_name].append(None)
+            else:
+                one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.data[floorplan_name]['area'])
+                self.exploration_data[floorplan_name].append(one_exploration_data)
         
-        with open(os.path.join(args.logdir, '{},finish_times.json'.format(self.label)), 'w') as f:
-            json.dump(self.finish_times, f, indent=4)
 
 
     def average_floorplan_data(self):
