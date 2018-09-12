@@ -178,7 +178,7 @@ class InfoDataset:
         # now done for each file separately
         # self.aggregate_exploration_data()
         self.update_max() 
-        self.update_finish_time_data()
+        # self.update_finish_time_data()
 
 
     def load(self, directory, repeat_times):
@@ -567,6 +567,7 @@ def renormalize_coverage(all_tests, max_labels):
                 # validate coverage
                 if test.exploration_data[floorplan][one_run_idx][PERCENT_AREA_LABEL][-1] < analysis_const.MIN_PERCENTAGE_COVERAGE:
                     test.exploration_data[floorplan][one_run_idx] = None
+        test.update_finish_time_data()
 
 
 def group_outputs(outputs):
