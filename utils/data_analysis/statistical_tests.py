@@ -125,7 +125,24 @@ def filter_t_test_data(t_test_data, max_size, null_algorithm='250_info'):
                 }
     return t_test_data
 
-def show_t_score(null_algorithm='250_info'):
+
+def t_confidence_map(degrees_of_freedom):
+    t_confidence_dict = {
+        16: 2.12,
+        18: 2.101,
+        20: 2.086,
+        54: 1.67
+    }
+
+    if degrees_of_freedom in t_confidence_dict:
+        return t_confidence_dict[degrees_of_freedom]
+    else:
+        if degrees_of_freedom > 40:
+            return 2.021
+        if degrees_of_freedom > 60:
+            return 2.00
+
+def show_t_score(null_algorithm='ig_hector'):
     """
     based on https://towardsdatascience.com/inferential-statistics-series-t-test-using-numpy-2718f8f9bf2f
     :param test_type:
@@ -134,12 +151,6 @@ def show_t_score(null_algorithm='250_info'):
     """
     plt.rcParams["figure.figsize"] = (24, 8)
     plt.rcParams["savefig.dpi"] = 120
-
-    t_confidence_map = {
-        16: 2.12,
-        18: 2.101,
-        20: 2.086,
-    }
 
     percentages = ['75', '85', '95', '100']
     skip_floorplans = ['50052755', '50057023', '50055642']
@@ -190,7 +201,7 @@ def show_t_score(null_algorithm='250_info'):
         print('min experiments:', min_expts)
         filter_t_test_data(t_test_data, min_expts, null_algorithm)
         degrees_of_freedom = 2 * min_expts - 2
-        critical_t = t_confidence_map[degrees_of_freedom]
+        critical_t = t_confidence_map(degrees_of_freedom)
 
         sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'mean') #test_type)
 
