@@ -239,7 +239,6 @@ class InfoDataset:
             json.dump(self.max_labels, f, indent=4)
         
         with open(os.path.join(args.logdir, '{},finish_times.json'.format(self.label)), 'w') as f:
-            print(self.finish_times)
             json.dump(self.finish_times, f, indent=4)
 
 
@@ -318,7 +317,8 @@ class InfoDataset:
             for floorplan_name in common_floorplan_names:
                   
                 if type(self.exploration_data[floorplan_name]) == str:
-                    STD_ERR('exploration data for ' + floorplan_name + 'already cached')
+                    # STD_ERR('exploration data for ' + floorplan_name + ' already cached')
+                    continue
                
                 if floorplan_name not in self.finish_times[x_label]:
                     self.finish_times[x_label][floorplan_name] = {
@@ -350,17 +350,17 @@ class InfoDataset:
         common_floorplan_names = self.exploration_data.keys()
 
         for floorplan_name in common_floorplan_names:
-            if floorplan_name in self.max_labels:
-                # already computed
-                continue
-
             for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
                 if type(self.exploration_data[floorplan_name]) == str:
-                    STD_ERR('exploration data for ' + floorplan_name + 'already cached')
-
-                if self.exploration_data[floorplan_name][one_run_idx] is None:
+                    # STD_ERR('update max: exploration data for ' + floorplan_name + ' already cached')
                     continue
-                for label in self.exploration_data[floorplan_name][one_run_idx]:
+
+                if self.exploration_data[floorplan_name][one_run_idx] is None or \
+                    type(self.exploration_data[floorplan_name][one_run_idx]) is str:
+                    continue
+                for label in self.exploration_data[floorplan_name][one_run_idx].keys():
+                    if label not in self.max_labels:
+                        self.max_labels[label] = {}
                     if floorplan_name not in self.max_labels[label]:
                         self.max_labels[label][floorplan_name] = float('-inf')
                     x = self.exploration_data[floorplan_name][one_run_idx][label]
@@ -528,8 +528,11 @@ def compute_max_labels(all_tests):
         common_floorplan_names = common_floorplan_names & all_tests[i].data.keys()
 
     for label in new_max_labels:
-        for floorplan_name in new_max_labels[label]:
+        for floorplan_name in common_floorplan_names: # new_max_labels[label]:
             for test in all_tests:
+                if floorplan_name not in new_max_labels[label] or floorplan_name not in test.max_labels[label]:
+                    STD_ERR('no floorplan ' + floorplan_name)
+                    continue
                 new_max_labels[label][floorplan_name] = max(test.max_labels[label][floorplan_name],
                                                             new_max_labels[label][floorplan_name])
 
@@ -766,6 +769,8 @@ if __name__ == "__main__":
     parse_cached()
 
     max_labels = compute_max_labels(all_tests)
+    with open(os.path.join(args.logdir, 'all_max_labels.json'), 'w') as f:
+        json.dump(max_labels, f, indent=4)
     renormalize_coverage(all_tests, max_labels)
 
     for one_test in all_tests:
