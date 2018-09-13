@@ -177,7 +177,7 @@ class InfoDataset:
 
         # now done for each file separately
         # self.aggregate_exploration_data()
-        self.update_max() 
+        # self.update_max()
         # self.update_finish_time_data()
 
 
@@ -205,6 +205,18 @@ class InfoDataset:
             self.aggregate_exploration_data(self.data[floorplan_name], floorplan_name)
             # self.update_max()
             # self.update_finish_time_data()
+
+            # debug
+            plt.clf()
+            for num in range(repeat_times):
+                if self.exploration_data[floorplan_name][num] is None:
+                    continue
+                plt.plot(self.exploration_data[floorplan_name][num][SIM_TIME_LABEL],
+                         self.exploration_data[floorplan_name][num][PERCENT_AREA_LABEL])
+            title = '{}_{}'.format(self.label, floorplan_name)
+            plt.title(title)
+            plt.savefig(os.path.join(args.logdir, title+'.png'))
+
             filename = '{},{}.json'.format(self.label, floorplan_name)
             STD_LOG('writing for {}'.format(filename)) 
             with open(os.path.join(args.logdir, filename), 'w') as f:
@@ -241,14 +253,37 @@ class InfoDataset:
                     }
 
     def aggregate_exploration_data(self, data, floorplan_name):
-        floorplan_data = self.data[floorplan_name]['repeat_runs_data']
+        floorplan_data = data['repeat_runs_data']
         self.exploration_data[floorplan_name] = []
         for t in range(self.repeat_times):
             if floorplan_data[t] is None:
                 self.exploration_data[floorplan_name].append(None)
             else:
-                one_exploration_data = aggregate_one_explore_data(floorplan_data[t], self.data[floorplan_name]['area'])
+                one_exploration_data = aggregate_one_explore_data(floorplan_data[t], data['area'])
                 self.exploration_data[floorplan_name].append(one_exploration_data)
+
+        self.update_max([floorplan_name])
+
+        # extend the data to max length
+        for repeat_idx in range(len(self.exploration_data[floorplan_name])):
+            if self.exploration_data[floorplan_name][repeat_idx] is None:
+                continue
+            sim_times = self.exploration_data[floorplan_name][repeat_idx][SIM_TIME_LABEL]
+            assert (len(sim_times))
+            if sim_times[-1] < self.max_labels[SIM_TIME_LABEL][floorplan_name]:
+                time_resolution = sim_times[-1] - sim_times[-2]
+                assert(time_resolution > 1e-6)
+                added_time = np.arange(sim_times[-1]+time_resolution,
+                                       self.max_labels[SIM_TIME_LABEL][floorplan_name]+time_resolution,
+                                       time_resolution)
+                sim_times.extend(added_time.tolist())
+
+                for label_to_extend in [SYS_TIME_LABEL, TRAJECTORY_LABEL, AREA_LABEL, PERCENT_AREA_LABEL]:
+                    label_data = self.exploration_data[floorplan_name][repeat_idx][label_to_extend]
+                    label_data.extend(
+                        [label_data[-1] for _ in range(len(added_time))]
+                    )
+
         
 
 
@@ -358,8 +393,9 @@ class InfoDataset:
                 ))
 
 
-    def update_max(self):
-        common_floorplan_names = self.exploration_data.keys()
+    def update_max(self, common_floorplan_names=[]):
+        if not len(common_floorplan_names):
+            common_floorplan_names = self.exploration_data.keys()
 
         for floorplan_name in common_floorplan_names:
             for one_run_idx, one_run_data in enumerate(self.exploration_data[floorplan_name]):
