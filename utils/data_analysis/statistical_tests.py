@@ -100,11 +100,11 @@ def filter_t_test_data(t_test_data, max_size, null_algorithm='250_info'):
                 # use the best tests from all the algorithms
                 t_test_data[percentage][null_algorithm][floorplan_name]['data'].sort()
                 null_data = t_test_data[percentage][null_algorithm][floorplan_name]['data'] \
-                    = t_test_data[percentage][null_algorithm][floorplan_name]['data'][:max_size]
+                    = t_test_data[percentage][null_algorithm][floorplan_name]['data'][:max_size[percentage]]
 
                 t_test_data[percentage][algorithm][floorplan_name]['data'].sort()
                 algorithm_data = t_test_data[percentage][algorithm][floorplan_name]['data'] \
-                    = t_test_data[percentage][algorithm][floorplan_name]['data'][:max_size]
+                    = t_test_data[percentage][algorithm][floorplan_name]['data'][:max_size[percentage]]
 
                 t, p = scipy.stats.ttest_ind(algorithm_data, null_data, equal_var=False)
                 # 2xp cuz two tailed analysis
@@ -131,16 +131,19 @@ def t_confidence_map(degrees_of_freedom):
         16: 2.12,
         18: 2.101,
         20: 2.086,
-        54: 1.67
     }
 
     if degrees_of_freedom in t_confidence_dict:
         return t_confidence_dict[degrees_of_freedom]
     else:
-        if degrees_of_freedom > 40:
-            return 2.021
         if degrees_of_freedom > 60:
             return 2.00
+        elif degrees_of_freedom > 40:
+            return 2.021
+        elif degrees_of_freedom > 30:
+            return 2.042
+
+
 
 def show_t_score(null_algorithm='ig_hector'):
     """
@@ -149,10 +152,10 @@ def show_t_score(null_algorithm='ig_hector'):
     :param null_algorithm:
     :return:
     """
-    plt.rcParams["figure.figsize"] = (24, 8)
+    plt.rcParams["figure.figsize"] = (24, 8) #8)
     plt.rcParams["savefig.dpi"] = 120
 
-    percentages = ['75', '85', '95', '100']
+    percentages = ['75', '85', '95']
     skip_floorplans = ['50052755', '50057023', '50055642']
 
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
@@ -161,7 +164,7 @@ def show_t_score(null_algorithm='ig_hector'):
     for eval_metric in eval_metrics:
         x_label_alias, _ = exploration_efficiency_visualization.getXYLabel(eval_metric)
         t_test_data = {}
-        min_expts = float('inf')
+        min_expts = {percentage: float('inf') for percentage in percentages}
         for floorplan_name in floorplan_names:
             if floorplan_name in skip_floorplans:
                 continue
@@ -179,7 +182,7 @@ def show_t_score(null_algorithm='ig_hector'):
                     # if algorithm == null_algorithm:
                     #     continue
                     algorithm_data = all_arrival_time_data_dict[algorithm][eval_metric][floorplan_name][percentage]
-                    min_expts = min(min_expts, len(algorithm_data))
+                    min_expts[percentage] = min(min_expts[percentage], len(algorithm_data))
 
                     t, p = scipy.stats.ttest_ind(algorithm_data, null_data, equal_var=False)
                     # 2xp cuz two tailed analysis
@@ -200,16 +203,17 @@ def show_t_score(null_algorithm='ig_hector'):
 
         print('min experiments:', min_expts)
         filter_t_test_data(t_test_data, min_expts, null_algorithm)
-        degrees_of_freedom = 2 * min_expts - 2
-        critical_t = t_confidence_map(degrees_of_freedom)
 
         sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'mean') #test_type)
 
         for test_type in ['p', 't']:
             for percentage in sorted(t_test_data.keys()):
+                degrees_of_freedom = 2 * min_expts[percentage] - 2
+                critical_t = t_confidence_map(degrees_of_freedom)
+
                 plt.clf()
                 for algorithm_idx, algorithm in enumerate(algorithms):
-                    if algorithm not in t_test_data[percentage] or algorithm == null_algorithm:
+                    if algorithm not in t_test_data[percentage]: # or algorithm == null_algorithm:
                         continue
                     y = []
                     for floorplan_name in sorted_floorplans_data.keys():
@@ -226,7 +230,7 @@ def show_t_score(null_algorithm='ig_hector'):
 
                 plt.xlabel('floor plans')
                 plt.ylabel(test_type + ' score for ' + x_label_alias)
-                plt.legend(loc='lower right')
+                # plt.legend(loc='lower right')
                 plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
                 # plt.title(plot_title)
                 plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
@@ -262,9 +266,9 @@ def show_t_score(null_algorithm='ig_hector'):
 
                     plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
                     plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                    plt.errorbar(x, y, yerr=error,
-                                 color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7,
-                                 capsize=20, elinewidth=3)
+                    # plt.errorbar(x, y, yerr=error,
+                    #              color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7,
+                    #              capsize=20, elinewidth=3)
 
                 plt.xticks(x, list(sorted_floorplans_data.keys()))
                 plt.xlabel('floor plans')
@@ -309,5 +313,5 @@ if __name__ == '__main__':
     )
 
     # show_histogram()
-    show_t_score()
+    show_t_score('ig_cost_utility')
 
