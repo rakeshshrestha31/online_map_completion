@@ -13,13 +13,12 @@ from exploration_efficiency_visualization import visualize_floorplan, compare_ou
 import exploration_efficiency_visualization
 
 def show_histogram():
+    percentages = ['75', '85', '95']
+
     for eval_metric in eval_metrics:
         x_label_alias, y_label_alias = exploration_efficiency_visualization.getXYLabel(eval_metric)
         for floorplan_name in common_floorplan_names:
             for percentage in percentages:
-                if float(percentage) < 95:
-                    continue
-
                 plt.clf()
                 for algorthm_idx, algorithm in enumerate(all_arrival_time_data_dict.keys()):
                     percentage_data = all_arrival_time_data_dict[algorithm][eval_metric][floorplan_name][percentage]
@@ -312,6 +311,6 @@ if __name__ == '__main__':
         ))
     )
 
-    # show_histogram()
+    show_histogram()
     show_t_score('ig_cost_utility')
 
