@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
 import os
+import csv
 
 from exploration_efficiency_visualization import visualize_floorplan, compare_outputs, group_outputs, TRAJECTORY_LABEL, \
     SIM_TIME_LABEL, PERCENT_AREA_LABEL
@@ -141,6 +142,8 @@ def t_confidence_map(degrees_of_freedom):
             return 2.021
         elif degrees_of_freedom > 30:
             return 2.042
+        else:
+            return 2.2
 
 
 
@@ -239,8 +242,9 @@ def show_t_score(null_algorithm='ig_hector'):
 
         # plot the mean and stddevs
         for percentage in sorted(t_test_data.keys()):
-            for average in ['mean', 'stddev']:
+            for average in ['mean']: # ['mean', 'median']:
                 plt.clf()
+                tabular_stats = []
                 for algorithm_idx, algorithm in enumerate(algorithms):
                     stats = ['mean', 'stddev'] if average == 'mean' else ['median', 'Q1', 'Q3']
 
@@ -255,7 +259,6 @@ def show_t_score(null_algorithm='ig_hector'):
                             y = algorithm_stats['mean']
                             error = algorithm_stats['stddev']
                         else:
-                            average = 'median'
                             y = algorithm_stats['median']
                             error_hi = np.asarray(algorithm_stats['Q3']) - np.asarray(algorithm_stats['median'])
                             error_low = np.asarray(algorithm_stats['median']) - np.asarray(algorithm_stats['Q1'])
@@ -268,6 +271,42 @@ def show_t_score(null_algorithm='ig_hector'):
                     # plt.errorbar(x, y, yerr=error,
                     #              color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7,
                     #              capsize=20, elinewidth=3)
+
+                    if type(error) == np.ndarray and error.shape[0] == 2:
+                        error = error[1] - error[0]
+                    tabular_stats.append(list(zip(y, error)))
+
+                tabular_stats = np.asarray(tabular_stats)
+                tabular_stats = tabular_stats.transpose(1, 0, 2)
+                csv_list = []
+                filename = '{}_{}'.format(eval_metric, percentage)
+                print(filename)
+
+                for floorplan_idx, floorplan_name in enumerate(sorted_floorplans_data.keys()):
+                    algorithm_data = []
+                    # skip the ground truth
+                    for algorithm_idx in range(1, len(algorithms)):
+                        # algorithm_data.append(
+                        #     '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] # +
+                        #     # ' \u00b1 ' +
+                        #     # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][1]
+                        # )
+                        algorithm_data.append(tabular_stats[floorplan_idx][algorithm_idx][0])
+                    max_algorithm_idx = np.argmin(algorithm_data)
+                    algorithm_data = list(map(lambda x: '{:.2f}'.format(x), algorithm_data))
+                    print('{} \\\\ \hline'.format(
+                        ' & '.join(
+                            map(lambda ix: '${}$'.format(
+                                ix[1] if ix[0] != max_algorithm_idx
+                                else '\mathbf{' + ix[1] + '}'
+                            ), enumerate(algorithm_data))
+                        )
+                    ))
+                    csv_list.append(algorithm_data)
+
+                with open(os.path.join('/tmp', filename+'.csv'), 'w') as f:
+                    csv_writer = csv.writer(f)
+                    csv_writer.writerows(csv_list)
 
                 plt.xticks(x, list(sorted_floorplans_data.keys()))
                 plt.xlabel('floor plans')
@@ -312,5 +351,5 @@ if __name__ == '__main__':
     )
 
     show_histogram()
-    show_t_score('ig_cost_utility')
+    show_t_score('ig_hector')
 
