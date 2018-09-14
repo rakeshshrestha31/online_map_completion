@@ -284,23 +284,14 @@ def show_t_score(null_algorithm='ig_hector'):
 
                 for floorplan_idx, floorplan_name in enumerate(sorted_floorplans_data.keys()):
                     algorithm_data = []
-                    # skip the ground truth
-                    for algorithm_idx in range(1, len(algorithms)):
-                        # algorithm_data.append(
-                        #     '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] # +
-                        #     # ' \u00b1 ' +
-                        #     # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][1]
-                        # )
-                        algorithm_data.append(tabular_stats[floorplan_idx][algorithm_idx][0])
-                    max_algorithm_idx = np.argmin(algorithm_data)
-                    algorithm_data = list(map(lambda x: '{:.2f}'.format(x), algorithm_data))
-                    print('{} \\\\ \hline'.format(
-                        ' & '.join(
-                            map(lambda ix: '${}$'.format(
-                                ix[1] if ix[0] != max_algorithm_idx
-                                else '\mathbf{' + ix[1] + '}'
-                            ), enumerate(algorithm_data))
+                    for algorithm_idx, algorithm in enumerate(algorithms):
+                        algorithm_data.append(
+                            '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] # +
+                            # ' \u00b1 ' +
+                            # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][1]
                         )
+                    print('{} \\\\ \hline'.format(
+                        ' & '.join(map(lambda x: '${}$'.format(x), algorithm_data))
                     ))
                     csv_list.append(algorithm_data)
 
@@ -351,5 +342,5 @@ if __name__ == '__main__':
     )
 
     show_histogram()
-    show_t_score('ig_hector')
+    show_t_score('ig_cost_utility')
 
