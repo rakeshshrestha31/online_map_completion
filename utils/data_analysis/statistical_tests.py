@@ -242,7 +242,7 @@ def show_t_score(null_algorithm='ig_hector'):
 
         # plot the mean and stddevs
         for percentage in sorted(t_test_data.keys()):
-            for average in ['mean']: # ['mean', 'median']:
+            for average in ['median']: # ['mean', 'median']:
                 plt.clf()
                 tabular_stats = []
                 for algorithm_idx, algorithm in enumerate(algorithms):
@@ -291,6 +291,7 @@ def show_t_score(null_algorithm='ig_hector'):
                             # ' \u00b1 ' +
                             # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][1]
                         )
+                    algorithm_data = algorithm_data[1:]
                     min_idx = np.argmin(algorithm_data)
                     algorithm_data = list(map(lambda x: '{:.2f}'.format(x), algorithm_data))
 
