@@ -286,12 +286,21 @@ def show_t_score(null_algorithm='ig_hector'):
                     algorithm_data = []
                     for algorithm_idx, algorithm in enumerate(algorithms):
                         algorithm_data.append(
-                            '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] # +
+                            tabular_stats[floorplan_idx][algorithm_idx][0]
+                            # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] # +
                             # ' \u00b1 ' +
                             # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][1]
                         )
+                    min_idx = np.argmin(algorithm_data)
+                    algorithm_data = list(map(lambda x: '{:.2f}'.format(x), algorithm_data))
+
                     print('{} \\\\ \hline'.format(
-                        ' & '.join(map(lambda x: '${}$'.format(x), algorithm_data))
+                        ' & '.join(
+                            map(
+                                lambda ix: ix[1] if ix[0] != min_idx else '$\mathbf{' + ix[1] + '}$',
+                                enumerate(algorithm_data)
+                            )
+                        )
                     ))
                     csv_list.append(algorithm_data)
 
