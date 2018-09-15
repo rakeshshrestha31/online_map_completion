@@ -69,7 +69,7 @@ def sort_floorplan(test_data, floorplan_names, test_type):
         floorplans_data = []
         for floorplan_name in floorplan_names:
             algorithms_data = []
-            for algorithm in test_data[percentage].keys():
+            for algorithm in ['ig_hector_gt']: # test_data[percentage].keys():
                 algorithms_data.append((algorithm, test_data[percentage][algorithm][floorplan_name][test_type]))
             algorithms_data = OrderedDict(algorithms_data)
             floorplans_data.append((floorplan_name, algorithms_data))
@@ -157,7 +157,7 @@ def show_t_score(null_algorithm='ig_hector'):
     plt.rcParams["figure.figsize"] = (24, 8) #8)
     plt.rcParams["savefig.dpi"] = 120
 
-    percentages = ['75', '85', '95']
+    percentages = ['85']
     skip_floorplans = ['50052755', '50057023', '50055642']
 
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
@@ -206,7 +206,7 @@ def show_t_score(null_algorithm='ig_hector'):
         print('min experiments:', min_expts)
         filter_t_test_data(t_test_data, min_expts, null_algorithm)
 
-        sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'mean') #test_type)
+        sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'median') #test_type)
 
         for test_type in ['p', 't']:
             for percentage in sorted(t_test_data.keys()):
@@ -221,8 +221,8 @@ def show_t_score(null_algorithm='ig_hector'):
                     for floorplan_name in sorted_floorplans_data.keys():
                         y.append(t_test_data[percentage][algorithm][floorplan_name][test_type])
                     x = list(range(len(y)))
-                    plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                    plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    # plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.scatter(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
                     plt.xticks(x, list(sorted_floorplans_data.keys()))
 
                 # 90% interval: 1.734, 95%: 2.1
@@ -232,7 +232,7 @@ def show_t_score(null_algorithm='ig_hector'):
 
                 plt.xlabel('floor plans')
                 plt.ylabel(test_type + ' score for ' + x_label_alias)
-                # plt.legend(loc='lower right')
+                plt.legend(loc='lower right')
                 plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
                 # plt.title(plot_title)
                 plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
@@ -266,8 +266,8 @@ def show_t_score(null_algorithm='ig_hector'):
 
                         x = list(range(len(y)))
 
-                    plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                    plt.scatter(x, y, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    # plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.scatter(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
                     # plt.errorbar(x, y, yerr=error,
                     #              color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7,
                     #              capsize=20, elinewidth=3)
@@ -313,7 +313,7 @@ def show_t_score(null_algorithm='ig_hector'):
                 plt.xlabel('floor plans')
                 plt.ylabel(average + ' ' + x_label_alias)
 
-                plt.legend(loc='lower right')
+                plt.legend(loc='upper left')
 
                 plot_title = "{}_{}_{}".format(average+'test', percentage, x_label_alias)
                 # plt.title(plot_title)
@@ -352,5 +352,5 @@ if __name__ == '__main__':
     )
 
     show_histogram()
-    show_t_score('ig_cost_utility')
+    show_t_score()#'ig_cost_utility')
 
