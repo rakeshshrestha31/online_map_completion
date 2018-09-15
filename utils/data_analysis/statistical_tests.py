@@ -163,6 +163,8 @@ def show_t_score(null_algorithm='ig_hector'):
     floorplan_names = list(filter(lambda x: x not in skip_floorplans, common_floorplan_names))
     algorithms = list(all_arrival_time_data_dict.keys())
 
+    sorted_floorplans_data = None
+
     for eval_metric in eval_metrics:
         x_label_alias, _ = exploration_efficiency_visualization.getXYLabel(eval_metric)
         t_test_data = {}
@@ -206,7 +208,8 @@ def show_t_score(null_algorithm='ig_hector'):
         print('min experiments:', min_expts)
         filter_t_test_data(t_test_data, min_expts, null_algorithm)
 
-        sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'median') #test_type)
+        if sorted_floorplans_data is None:
+            sorted_floorplans_data = sort_floorplan(t_test_data, floorplan_names, 'median') #test_type)
 
         for test_type in ['p', 't']:
             for percentage in sorted(t_test_data.keys()):
