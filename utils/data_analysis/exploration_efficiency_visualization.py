@@ -25,7 +25,7 @@ SIM_TIME_LABEL = "SimulationTimeCost"
 SYS_TIME_LABEL = "SystemTimeCost"
 
 COLORS = [
-    'b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'
+    'b', 'g', 'r', 'c', 'm', 'y', 'k', '#00FFFF', '#FFFF00', '#FF00FF'
 ]
 
 X_LABELS = [TRAJECTORY_LABEL, SIM_TIME_LABEL, SYS_TIME_LABEL]
@@ -516,10 +516,10 @@ def visualize_floorplan(avg_tests, test_labels, floorplan_name, data_type):
         plt.plot(x_data, y_data, label= test_labels[idx], color=COLORS[idx])
         
         alpha = 0.25 # 0.5
-        plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
+        # plt.fill_between(x_data, y_q1, y_q3, alpha=alpha, color=COLORS[idx])
         # plt.fill_between(x_data, np.asarray(y_data) - np.asarray(y_std), np.asarray(y_data) + np.asarray(y_std), alpha=alpha, color=COLORS[idx])
 
-        plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
+        # plt.axvline(x=x_data[-1], linestyle='dotted', color=COLORS[idx])
         maxes.append(x_data[-1])
 
     outputs = [] 
