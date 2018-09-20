@@ -116,7 +116,7 @@ class InfoGainServer:
 
             print("=> loading checkpoint '{}'".format(self.args.checkpoint))
             checkpoint = torch.load(self.args.checkpoint)
-            self.model.load_state_dict(checkpoint['state_dict'])
+            # self.model.load_state_dict(checkpoint['state_dict'])
             print("=> loaded checkpoint '{}'"
                   .format(self.args.checkpoint))
         else:
@@ -166,7 +166,9 @@ class InfoGainServer:
         if self.args.cuda:
             batch_input = batch_input.cuda()
             batch_gt = batch_gt.cuda()
-        output, _, _ = self.model(batch_input)
+
+        with torch.no_grad():
+            output, _, _ = self.model(batch_input)
 
         info_gain, info_gain_image = compute_expected_information_gain(batch_input.clone(), output, batch_info, '/tmp/info_gain_srv.png')
         info_gain_gt, info_gain_image_gt = compute_expected_information_gain(batch_input.clone(), batch_gt, batch_info, '/tmp/info_gain_srv_gt.png')
@@ -184,6 +186,9 @@ class InfoGainServer:
 
         response.prediction = self.bridge.cv2_to_imgmsg(info_gain_image, "passthrough")
         response.prediction_gt = self.bridge.cv2_to_imgmsg(info_gain_image_gt, "passthrough")
+
+        for i in range(output.size(0)):
+            response.predicted_frontiers.append(self.bridge.cv2_to_imgmsg(output[i].detach().numpy(), "passthrough"))
 
         return response
 
