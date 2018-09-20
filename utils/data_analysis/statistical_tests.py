@@ -154,8 +154,8 @@ def show_t_score(null_algorithm='ig_hector'):
     :param null_algorithm:
     :return:
     """
-    plt.rcParams["figure.figsize"] = (24, 8) #8)
-    plt.rcParams["savefig.dpi"] = 120
+    plt.rcParams["figure.figsize"] = (32, 8) #8)
+    plt.rcParams["savefig.dpi"] = 150
 
     percentages = ['85']
     skip_floorplans = ['50052755', '50057023', '50055642']
@@ -225,17 +225,17 @@ def show_t_score(null_algorithm='ig_hector'):
                         y.append(t_test_data[percentage][algorithm][floorplan_name][test_type])
                     x = list(range(len(y)))
                     # plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                    plt.scatter(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                    plt.xticks(x, list(sorted_floorplans_data.keys()))
+                    plt.scatter(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7)
+                    plt.xticks(x, range(len(sorted_floorplans_data))) # (list(sorted_floorplans_data.keys()))
 
                 # 90% interval: 1.734, 95%: 2.1
                 # confidence_interval = 1.734 if test_type == 't' else 0.1
                 confidence_interval = critical_t if test_type == 't' else 0.05
                 plt.axhline(y=confidence_interval, linestyle='dotted')
 
-                plt.xlabel('floor plans')
-                plt.ylabel(test_type + ' score for ' + x_label_alias)
-                plt.legend(loc='lower right')
+                # plt.xlabel('floor plans')
+                # plt.ylabel(test_type + ' score for ' + x_label_alias)
+                # plt.legend(loc='lower right')
                 plot_title = "{}_{}_{}".format(test_type+'test', percentage, x_label_alias)
                 # plt.title(plot_title)
                 plt.savefig(os.path.join('/tmp/', plot_title + '.png'))
@@ -270,7 +270,7 @@ def show_t_score(null_algorithm='ig_hector'):
                         x = list(range(len(y)))
 
                     # plt.plot(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
-                    plt.scatter(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx])
+                    plt.scatter(x, y, label=algorithm, color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7)
                     # plt.errorbar(x, y, yerr=error,
                     #              color=exploration_efficiency_visualization.COLORS[algorithm_idx], alpha=0.7,
                     #              capsize=20, elinewidth=3)
@@ -312,9 +312,10 @@ def show_t_score(null_algorithm='ig_hector'):
                     csv_writer = csv.writer(f)
                     csv_writer.writerows(csv_list)
 
-                plt.xticks(x, list(sorted_floorplans_data.keys()))
-                plt.xlabel('floor plans')
-                plt.ylabel(average + ' ' + x_label_alias)
+                # plt.xticks(x, list(sorted_floorplans_data.keys()))
+                plt.xticks(x, range(len(sorted_floorplans_data)))
+                # plt.xlabel('floor plans')
+                # plt.ylabel(average + ' ' + x_label_alias)
 
                 plt.legend(loc='upper left')
 
@@ -354,6 +355,6 @@ if __name__ == '__main__':
         ))
     )
 
-    show_histogram()
+    # show_histogram()
     show_t_score()#'ig_cost_utility')
 
