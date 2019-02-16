@@ -245,7 +245,7 @@ def show_t_score(null_algorithm='ig_hector'):
 
         # plot the mean and stddevs
         for percentage in sorted(t_test_data.keys()):
-            for average in ['median']: # ['mean', 'median']:
+            for average in ['mean']: # ['mean', 'median']:
                 plt.clf()
                 tabular_stats = []
                 for algorithm_idx, algorithm in enumerate(algorithms):
@@ -265,7 +265,8 @@ def show_t_score(null_algorithm='ig_hector'):
                             y = algorithm_stats['median']
                             error_hi = np.asarray(algorithm_stats['Q3']) - np.asarray(algorithm_stats['median'])
                             error_low = np.asarray(algorithm_stats['median']) - np.asarray(algorithm_stats['Q1'])
-                            error = np.stack((error_low, error_hi))
+                            error = np.asarray(algorithm_stats['Q3']) - np.asarray(algorithm_stats['Q1'])
+                            # error = np.stack((error_low, error_hi))
 
                         x = list(range(len(y)))
 
@@ -287,16 +288,23 @@ def show_t_score(null_algorithm='ig_hector'):
 
                 for floorplan_idx, floorplan_name in enumerate(sorted_floorplans_data.keys()):
                     algorithm_data = []
+                    means = []
                     for algorithm_idx, algorithm in enumerate(algorithms):
                         algorithm_data.append(
-                            tabular_stats[floorplan_idx][algorithm_idx][0]
-                            # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] # +
-                            # ' \u00b1 ' +
-                            # '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][1]
+                            # tabular_stats[floorplan_idx][algorithm_idx][0]
+                            '%.2f' % tabular_stats[floorplan_idx][algorithm_idx][0] +
+                            ' \pm ' +
+                            '%.2f\%%' % (tabular_stats[floorplan_idx][algorithm_idx][1] /
+                                    tabular_stats[floorplan_idx][algorithm_idx][0] * 100.)
                         )
+                        means.append(tabular_stats[floorplan_idx][algorithm_idx][0])
+
+                    # skip the first algorithm (Ground truth) from evaluation
                     algorithm_data = algorithm_data[1:]
-                    min_idx = np.argmin(algorithm_data)
-                    algorithm_data = list(map(lambda x: '{:.2f}'.format(x), algorithm_data))
+                    means = means[1:]
+
+                    min_idx = np.argmin(means)
+                    # algorithm_data = list(map(lambda x: '{:.2f}'.format(x), algorithm_data))
 
                     print('{} \\\\ \hline'.format(
                         ' & '.join(
@@ -312,8 +320,8 @@ def show_t_score(null_algorithm='ig_hector'):
                     csv_writer = csv.writer(f)
                     csv_writer.writerows(csv_list)
 
-                # plt.xticks(x, list(sorted_floorplans_data.keys()))
-                plt.xticks(x, range(len(sorted_floorplans_data)))
+                plt.xticks(x, list(sorted_floorplans_data.keys()))
+                # plt.xticks(x, range(1, len(sorted_floorplans_data)+1))
                 # plt.xlabel('floor plans')
                 # plt.ylabel(average + ' ' + x_label_alias)
 
